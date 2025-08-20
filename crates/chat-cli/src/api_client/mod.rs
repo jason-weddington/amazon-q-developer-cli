@@ -272,48 +272,11 @@ impl ApiClient {
         &self.provider
     }
 
-    /// Test Ollama connection
-    pub async fn test_ollama_connection(&self) -> Result<bool, ApiClientError> {
-        match &self.ollama_client {
-            Some(client) => Ok(client.health_check().await?),
-            None => Ok(false),
-        }
-    }
-    
-    /// Get Ollama client reference
-    pub fn ollama_client(&self) -> Option<&OllamaClient> {
-        self.ollama_client.as_ref()
-    }
-    
-    /// List available Ollama models
-    pub async fn list_ollama_models(&self) -> Result<Vec<String>, ApiClientError> {
-        match &self.ollama_client {
-            Some(client) => {
-                let response = client.list_models().await?;
-                Ok(response.models.into_iter().map(|m| m.name).collect())
-            },
-            None => Err(ApiClientError::UnsupportedProvider("ollama".to_string())),
-        }
-    }
-
-    /// Send a message using Ollama provider
-    pub async fn send_message_ollama(&self, messages: Vec<OllamaMessage>, model: &str) -> Result<SendMessageOutput, ApiClientError> {
-        match &self.ollama_client {
-            Some(client) => {
-                let request = OllamaChatRequest {
-                    model: model.to_string(),
-                    messages,
-                    tools: None, // No tools for this simple method
-                    stream: Some(false), // Non-streaming for Task 3
-                    format: None,
-                    options: None,
-                    keep_alive: None,
-                };
-                
-                let response = client.chat(request).await?;
-                Ok(SendMessageOutput::from_ollama(response))
-            },
-            None => Err(ApiClientError::UnsupportedProvider("ollama".to_string())),
+    /// List models from external provider (e.g., Ollama)
+    pub async fn list_external_models(&self) -> Result<Vec<String>, ApiClientError> {
+        match &self.external_provider {
+            Some(provider) => provider.list_models().await,
+            None => Err(ApiClientError::UnsupportedProvider("No external provider configured".to_string())),
         }
     }
 
@@ -688,279 +651,12 @@ impl ApiClient {
     }
 
     /// Get tools based on model capabilities
-    async fn get_ollama_tools(&self, model: &str) -> Result<Vec<OllamaTool>, ApiClientError> {
-        use crate::api_client::ollama::{OllamaTool, OllamaFunction};
-        
-        let mut tools = Vec::new();
-        
-        // Always include core functional tools
-        tools.push(OllamaTool {
-            tool_type: "function".to_string(),
-            function: OllamaFunction {
-                name: "fs_read".to_string(),
-                description: "Read files, directories and images. Always provide an 'operations' array.".to_string(),
-                parameters: serde_json::json!({
-                    "type": "object",
-                    "properties": {
-                        "operations": {
-                            "type": "array",
-                            "description": "Array of operations to execute",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "mode": {
-                                        "type": "string", 
-                                        "enum": ["Line", "Directory", "Search", "Image"],
-                                        "description": "The operation mode to run in"
-                                    },
-                                    "path": {
-                                        "type": "string",
-                                        "description": "Path to the file or directory"
-                                    },
-                                    "start_line": {
-                                        "type": "integer", 
-                                        "default": 1,
-                                        "description": "Starting line number (for Line mode)"
-                                    },
-                                    "end_line": {
-                                        "type": "integer", 
-                                        "default": -1,
-                                        "description": "Ending line number (for Line mode)"
-                                    },
-                                    "pattern": {
-                                        "type": "string",
-                                        "description": "Pattern to search for (for Search mode)"
-                                    }
-                                },
-                                "required": ["mode", "path"]
-                            }
-                        },
-                        "summary": {
-                            "type": "string",
-                            "description": "Optional description of the purpose of this operation"
-                        }
-                    },
-                    "required": ["operations"]
-                }),
-            },
-        });
-        
-        // execute_bash tool
-        tools.push(OllamaTool {
-            tool_type: "function".to_string(),
-            function: OllamaFunction {
-                name: if cfg!(windows) { "execute_cmd" } else { "execute_bash" }.to_string(),
-                description: "Execute shell commands on the user's system".to_string(),
-                parameters: serde_json::json!({
-                    "type": "object",
-                    "properties": {
-                        "command": {
-                            "type": "string", 
-                            "description": "Shell command to execute"
-                        },
-                        "summary": {
-                            "type": "string", 
-                            "description": "Brief explanation of what the command does"
-                        }
-                    },
-                    "required": ["command"]
-                }),
-            },
-        });
-        
-        // fs_write tool
-        tools.push(OllamaTool {
-            tool_type: "function".to_string(),
-            function: OllamaFunction {
-                name: "fs_write".to_string(),
-                description: "Create and edit files".to_string(),
-                parameters: serde_json::json!({
-                    "type": "object",
-                    "properties": {
-                        "command": {
-                            "type": "string", 
-                            "enum": ["create", "str_replace", "insert", "append"],
-                            "description": "The command to run"
-                        },
-                        "path": {
-                            "type": "string",
-                            "description": "Absolute path to file or directory"
-                        },
-                        "file_text": {
-                            "type": "string",
-                            "description": "Content of the file to be created (for create command)"
-                        },
-                        "old_str": {
-                            "type": "string",
-                            "description": "String to replace (for str_replace command)"
-                        },
-                        "new_str": {
-                            "type": "string",
-                            "description": "New string (for str_replace and insert commands)"
-                        },
-                        "insert_line": {
-                            "type": "integer",
-                            "description": "Line number to insert after (for insert command)"
-                        },
-                        "summary": {
-                            "type": "string",
-                            "description": "Brief explanation of what the file change does"
-                        }
-                    },
-                    "required": ["command", "path"]
-                }),
-            },
-        });
-        
-        // use_aws tool
-        tools.push(OllamaTool {
-            tool_type: "function".to_string(),
-            function: OllamaFunction {
-                name: "use_aws".to_string(),
-                description: "Make AWS CLI api calls".to_string(),
-                parameters: serde_json::json!({
-                    "type": "object",
-                    "properties": {
-                        "service_name": {
-                            "type": "string",
-                            "description": "The name of the AWS service"
-                        },
-                        "operation_name": {
-                            "type": "string",
-                            "description": "The name of the operation to perform"
-                        },
-                        "parameters": {
-                            "type": "object",
-                            "description": "The parameters for the operation"
-                        },
-                        "region": {
-                            "type": "string",
-                            "description": "Region name for calling the operation on AWS"
-                        },
-                        "label": {
-                            "type": "string",
-                            "description": "Human readable description of the api being called"
-                        }
-                    },
-                    "required": ["service_name", "operation_name", "region", "label"]
-                }),
-            },
-        });
-        
-        // Check if model supports tools via capability detection
-        if let Some(ollama_client) = &self.ollama_client {
-            // For now, skip thinking tool - will add capability detection later
-            // TODO: Add thinking tool based on model capabilities and settings
-            tracing::debug!("Model {} tool capabilities will be checked in future implementation", model);
-        }
-        
-        Ok(tools)
-    }
 
     /// Internal method to send messages to Ollama
-    async fn send_message_ollama_internal(&self, conversation: ConversationState) -> Result<SendMessageOutput, ApiClientError> {
-        let (ollama_messages, model) = self.convert_conversation_to_ollama(conversation)?;
-        let ollama_tools = self.get_ollama_tools(&model).await?;
-        
-        match &self.ollama_client {
-            Some(client) => {
-                let request = OllamaChatRequest {
-                    model,
-                    messages: ollama_messages,
-                    tools: Some(ollama_tools), // Include tools in request
-                    stream: Some(true), // Enable streaming for Task 5
-                    format: None,
-                    options: None,
-                    keep_alive: None,
-                };
-                
-                let stream_receiver = client.chat_stream(request).await?;
-                Ok(SendMessageOutput::OllamaStreaming(stream_receiver))
-            },
-            None => Err(ApiClientError::UnsupportedProvider("ollama".to_string())),
-        }
-    }
 
     /// Convert AWS ConversationState to Ollama message format
-    fn convert_conversation_to_ollama(&self, conversation: ConversationState) -> Result<(Vec<OllamaMessage>, String), ApiClientError> {
-        let mut ollama_messages = Vec::new();
-        
-        // Convert conversation history
-        if let Some(history) = conversation.history {
-            for chat_message in history {
-                match chat_message {
-                    ChatMessage::UserInputMessage(user_msg) => {
-                        ollama_messages.push(OllamaMessage {
-                            role: "user".to_string(),
-                            content: Some(user_msg.content),
-                            images: self.convert_images_to_ollama(user_msg.images)?,
-                            tool_calls: None,
-                            tool_call_id: None,
-                        });
-                    },
-                    ChatMessage::AssistantResponseMessage(assistant_msg) => {
-                        // TODO: Handle tool calls in assistant messages
-                        // For now, just convert as regular assistant message
-                        ollama_messages.push(OllamaMessage {
-                            role: "assistant".to_string(),
-                            content: Some(assistant_msg.content),
-                            images: None, // Assistants don't send images in Ollama
-                            tool_calls: None, // TODO: Convert tool uses to tool calls
-                            tool_call_id: None,
-                        });
-                    },
-                }
-            }
-        }
-        
-        // Add current user message
-        let current_message = OllamaMessage {
-            role: "user".to_string(),
-            content: Some(conversation.user_input_message.content),
-            images: self.convert_images_to_ollama(conversation.user_input_message.images)?,
-            tool_calls: None,
-            tool_call_id: None,
-        };
-        ollama_messages.push(current_message);
-        
-        // Determine model to use
-        let model = conversation.user_input_message.model_id
-            .unwrap_or_else(|| "gpt-oss:120b".to_string()); // Hardcoded for testing
-        
-        Ok((ollama_messages, model))
-    }
 
     /// Convert AWS ImageBlock format to Ollama base64 format
-    fn convert_images_to_ollama(&self, aws_images: Option<Vec<ImageBlock>>) -> Result<Option<Vec<String>>, ApiClientError> {
-        match aws_images {
-            Some(images) => {
-                let mut ollama_images = Vec::new();
-                for image in images {
-                    // Convert AWS ImageBlock to Ollama base64 format
-                    let base64_image = match image.source {
-                        ImageSource::Bytes(bytes) => {
-                            use base64::{Engine as _, engine::general_purpose};
-                            let base64_data = general_purpose::STANDARD.encode(&bytes);
-                            let format_str = match image.format {
-                                ImageFormat::Png => "png",
-                                ImageFormat::Jpeg => "jpeg", 
-                                ImageFormat::Gif => "gif",
-                                ImageFormat::Webp => "webp",
-                            };
-                            format!("data:image/{};base64,{}", format_str, base64_data)
-                        },
-                        ImageSource::Unknown => {
-                            warn!("Unknown image source, skipping");
-                            continue;
-                        }
-                    };
-                    ollama_images.push(base64_image);
-                }
-                Ok(if ollama_images.is_empty() { None } else { Some(ollama_images) })
-            },
-            None => Ok(None),
-        }
-    }
 
     /// Only meant for testing. Do not use outside of testing responses.
     pub fn set_mock_output(&mut self, json: serde_json::Value) {
@@ -1134,30 +830,6 @@ mod tests {
     }
     
     #[tokio::test]
-    async fn test_send_message_ollama_no_client() {
-        // Test when no Ollama client is configured
-        let api_client = ApiClient {
-            client: create_dummy_aws_client().await,
-            streaming_client: None,
-            sigv4_streaming_client: None,
-            ollama_client: None,
-            mock_client: None,
-            profile: None,
-            model_cache: Arc::new(RwLock::new(None)),
-            provider: ModelProvider::Aws,
-            external_provider: None,
-        };
-        
-        let messages = vec![OllamaMessage {
-            role: "user".to_string(),
-            content: "Hello".to_string(),
-            images: None,
-        }];
-        
-        let result = api_client.send_message_ollama(messages, "llama3.2").await;
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ApiClientError::UnsupportedProvider(_)));
-    }
     
     async fn create_dummy_aws_client() -> CodewhispererClient {
         let credentials = Credentials::new("dummy", "dummy", None, None, "dummy");
@@ -1199,7 +871,7 @@ mod task4_tests {
             client: create_dummy_aws_client().await,
             streaming_client: None,
             sigv4_streaming_client: None,
-            ollama_client: None,
+            
             mock_client: None,
             profile: None,
             model_cache: Arc::new(RwLock::new(None)),
@@ -1209,28 +881,6 @@ mod task4_tests {
     }
     
     #[tokio::test]
-    async fn test_convert_simple_conversation_to_ollama() {
-        let api_client = create_test_api_client().await;
-        let conversation = ConversationState {
-            conversation_id: Some("test-conv".to_string()),
-            user_input_message: UserInputMessage {
-                content: "Hello, world!".to_string(),
-                model_id: Some("llama3.2".to_string()),
-                user_input_message_context: None,
-                user_intent: None,
-                images: None,
-            },
-            history: None,
-        };
-        
-        let (messages, model) = api_client.convert_conversation_to_ollama(conversation).unwrap();
-        
-        assert_eq!(messages.len(), 1);
-        assert_eq!(messages[0].role, "user");
-        assert_eq!(messages[0].content, "Hello, world!");
-        assert_eq!(messages[0].images, None);
-        assert_eq!(model, "llama3.2");
-    }
     
     #[tokio::test]
     async fn test_convert_conversation_with_history() {
@@ -1295,39 +945,6 @@ mod task4_tests {
     }
     
     #[tokio::test]
-    async fn test_convert_images_to_ollama() {
-        let api_client = create_test_api_client().await;
-        
-        // Test with no images
-        let result = api_client.convert_images_to_ollama(None).unwrap();
-        assert_eq!(result, None);
-        
-        // Test with empty images
-        let result = api_client.convert_images_to_ollama(Some(vec![])).unwrap();
-        assert_eq!(result, None);
-        
-        // Test with PNG image
-        let png_image = ImageBlock {
-            format: ImageFormat::Png,
-            source: ImageSource::Bytes(vec![137, 80, 78, 71]), // PNG header bytes
-        };
-        let result = api_client.convert_images_to_ollama(Some(vec![png_image])).unwrap();
-        assert!(result.is_some());
-        let images = result.unwrap();
-        assert_eq!(images.len(), 1);
-        assert!(images[0].starts_with("data:image/png;base64,"));
-        
-        // Test with JPEG image
-        let jpeg_image = ImageBlock {
-            format: ImageFormat::Jpeg,
-            source: ImageSource::Bytes(vec![255, 216, 255, 224]), // JPEG header bytes
-        };
-        let result = api_client.convert_images_to_ollama(Some(vec![jpeg_image])).unwrap();
-        assert!(result.is_some());
-        let images = result.unwrap();
-        assert_eq!(images.len(), 1);
-        assert!(images[0].starts_with("data:image/jpeg;base64,"));
-    }
     
     #[tokio::test]
     async fn test_convert_images_unknown_source() {

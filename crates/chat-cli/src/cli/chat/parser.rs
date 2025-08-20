@@ -233,7 +233,7 @@ impl SendMessageStream {
         let elapsed = start_time.elapsed();
         debug!(?elapsed, "send_message succeeded");
 
-        let request_id = response.request_id().map(str::to_string);
+        let request_id = response.request_id();
         let (ev_tx, ev_rx) = mpsc::channel(16);
         tokio::spawn(async move {
             ResponseParser::new(
