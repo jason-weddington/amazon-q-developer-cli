@@ -1498,6 +1498,13 @@ This completes the core chat functionality, setting up the foundation for Task 5
 ### Description
 Extend the existing `/model` command to work with Ollama provider, allowing users to list available local models and select them for chat sessions. This task bridges the gap between our message conversion (Task 4) and ensures users can easily discover and select Ollama models.
 
+### Status: ✅ COMPLETE
+- `/model` command works when `Q_CLI_MODEL_PROVIDER=ollama`
+- Lists available Ollama models from local server
+- Shows model names in user-friendly format
+- Allows model selection that works with Ollama chat
+- Model selection persists for the chat session
+
 ### Acceptance Criteria
 - [ ] `/model` command works when `Q_CLI_MODEL_PROVIDER=ollama`
 - [ ] Lists available Ollama models from local server
@@ -1758,3 +1765,92 @@ let ollama_tools = if let Some(ollama_client) = &self.ollama_client {
 ## Task 10: Enhanced Thinking Tool Capability Detection
 
 [To define]
+## Task 7: MCP Tools Integration with Ollama
+
+### Description
+Integrate MCP (Model Context Protocol) tools with Ollama provider so that tools from MCP servers (like `convert_to_markdown` from fetch server) are visible and usable by Ollama models, not just built-in tools.
+
+### Current Problem
+- Built-in tools (fs_read, execute_bash, fs_write, use_aws) work with Ollama ✅
+- MCP tools (convert_to_markdown, etc.) are visible in `/tools` command ✅
+- But MCP tools are NOT exposed to Ollama models in the system prompt ❌
+- Ollama models can only see and use built-in tools, missing MCP functionality
+
+### Research Findings
+- MCP tools are managed separately from built-in tools
+- `/tools` command shows both built-in and MCP tools correctly
+- Ollama tool mapping in `get_ollama_tools()` only includes built-in tools
+- Need to discover and include MCP tools in Ollama tool definitions
+
+### Implementation Approach
+```rust
+// In get_ollama_tools() method
+async fn get_ollama_tools(&self, model: &str) -> Result<Vec<OllamaTool>, ApiClientError> {
+    let mut tools = Vec::new();
+    
+    // Add built-in tools (existing)
+    tools.extend(self.get_builtin_ollama_tools());
+    
+    // NEW: Add MCP tools
+    if let Some(mcp_tools) = self.get_mcp_ollama_tools().await? {
+        tools.extend(mcp_tools);
+    }
+    
+    Ok(tools)
+}
+
+async fn get_mcp_ollama_tools(&self) -> Result<Option<Vec<OllamaTool>>, ApiClientError> {
+    // Discover MCP servers and their tools
+    // Convert MCP tool definitions to Ollama format
+    // Return tools that Ollama can invoke
+}
+```
+
+### Acceptance Criteria
+- [ ] MCP tools are discoverable by Ollama provider
+- [ ] MCP tools are included in Ollama tool definitions sent to models
+- [ ] Ollama models can see and invoke MCP tools (e.g., convert_to_markdown)
+- [ ] MCP tool calls work end-to-end (request → MCP server → response)
+- [ ] Tool results are properly integrated into conversation
+- [ ] Error handling for MCP server failures
+- [ ] All existing built-in tool functionality preserved
+
+### Implementation Details
+
+#### 1. MCP Tool Discovery
+Need to integrate with existing MCP client system to discover available tools from running MCP servers.
+
+#### 2. Tool Definition Conversion
+Convert MCP tool schemas to Ollama-compatible tool definitions:
+```rust
+// MCP tool schema → Ollama tool schema
+fn convert_mcp_tool_to_ollama(mcp_tool: McpTool) -> OllamaTool {
+    OllamaTool {
+        tool_type: "function".to_string(),
+        function: OllamaFunction {
+            name: mcp_tool.name,
+            description: mcp_tool.description,
+            parameters: convert_mcp_schema_to_json_schema(mcp_tool.input_schema),
+        },
+    }
+}
+```
+
+#### 3. Tool Execution Integration
+Ensure MCP tool calls from Ollama are properly routed to MCP servers and results returned.
+
+### Files to Investigate/Modify
+- `crates/chat-cli/src/providers/ollama/mod.rs` - Add MCP tool discovery
+- `crates/chat-cli/src/mcp_client/` - Integration with MCP system
+- Tool execution pipeline - Ensure MCP tools work with Ollama
+
+### Definition of Done
+- [ ] `/tools` command shows MCP tools available to Ollama
+- [ ] Ollama models can invoke MCP tools in conversation
+- [ ] MCP tool execution works end-to-end
+- [ ] Error handling for MCP failures
+- [ ] All existing functionality preserved
+- [ ] Integration tests demonstrate MCP tools working with Ollama
+
+### Expected Outcome
+After Task 7, Ollama models will have access to the full ecosystem of MCP tools, making them as capable as AWS models in terms of available functionality.

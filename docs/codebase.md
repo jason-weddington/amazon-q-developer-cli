@@ -162,6 +162,43 @@ Q_CLI_MODEL_PROVIDER_BASE_URL=http://localhost:11434  # Ollama server URL
 Q_CLI_MODEL_PROVIDER_API_KEY=sk-...                   # API key for external providers
 ```
 
+#### Plugin-Based Environment Validation
+```rust
+// Environment validation moved to plugin system
+pub fn validate_provider_environment() -> Result<String> {
+    let provider = std::env::var("Q_CLI_MODEL_PROVIDER")
+        .unwrap_or_else(|_| "aws".to_string())
+        .to_lowercase();
+    
+    match provider.as_str() {
+        "aws" => Ok(provider),
+        "ollama" => Ok(provider), // No API key required
+        "openai" | "anthropic" => {
+            // Check for required API key
+            if std::env::var("Q_CLI_MODEL_PROVIDER_API_KEY").is_err() {
+                bail!("Q_CLI_MODEL_PROVIDER_API_KEY environment variable is required");
+            }
+            Ok(provider)
+        },
+        _ => bail!("Invalid Q_CLI_MODEL_PROVIDER: '{}'", provider),
+    }
+}
+
+// Plugin-based auth bypass
+pub fn current_provider_requires_auth() -> bool {
+    let provider = std::env::var("Q_CLI_MODEL_PROVIDER")
+        .unwrap_or_else(|_| "aws".to_string())
+        .to_lowercase();
+    
+    match provider.as_str() {
+        "aws" => true,
+        "ollama" => false,
+        "openai" | "anthropic" => false, // They use API keys, not AWS auth
+        _ => true, // Default to requiring auth for unknown providers
+    }
+}
+```
+
 #### Ollama Provider Implementation
 ```rust
 // Example provider implementation

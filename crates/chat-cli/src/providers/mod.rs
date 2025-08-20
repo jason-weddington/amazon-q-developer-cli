@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use eyre::{Result, bail};
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use tracing::{debug, warn};
 
 use crate::api_client::model::ConversationState;
@@ -45,21 +46,17 @@ impl From<ProviderResponse> for SendMessageOutput {
     fn from(response: ProviderResponse) -> Self {
         match response {
             ProviderResponse::OllamaStreaming(_receiver) => {
-                // Create a bridge that converts plugin streaming to core streaming
-                // We'll create a mock stream that pulls from the plugin receiver
+                // Streaming not implemented yet - fallback to mock
                 use crate::api_client::model::ChatResponseStream;
-                
-                // For now, let's create a simple mock that shows we're getting the plugin response
-                // In Step 4, we'll properly integrate this with the core streaming system
                 let mock_content = vec![
                     ChatResponseStream::AssistantResponseEvent {
-                        content: "Ollama plugin is working! (Streaming response bridge active)".to_string(),
+                        content: "Streaming not yet implemented".to_string(),
                     }
                 ];
                 SendMessageOutput::Mock(mock_content)
             },
             ProviderResponse::Ollama(response) => {
-                // Convert plugin response to core response
+                // Convert Ollama response to Mock with actual content
                 use crate::api_client::model::ChatResponseStream;
                 let content = response.message.content.unwrap_or_else(|| "No content from Ollama".to_string());
                 let mock_content = vec![
