@@ -11,9 +11,11 @@ Do NOT create detailed breakdowns or sub-tasks here - keep it simple.
 - [x] Task 3: Add Ollama Variant to SendMessageOutput Enum
 - [x] Task 4: Implement Message Format Conversion
 - [x] Task 4.5: Integrate Ollama Model Listing with `/model` Command
-- [x] Task 5: Add Streaming Response Handling
-- [x] Task 6: Implement Tool Call Mapping
-- [ ] Task 7: MCP Tools Integration with Ollama
+- [ ] Task 7: Tool Result Handling in Conversation History
+- [ ] Task 8: Multi-turn Tool Conversations
+- [ ] Task 9: Error Handling for Unsupported Models
+- [ ] Task 10: Enhanced Thinking Tool Capability Detection
+- [ ] Task 11: MCP Tools Integration with Ollama
 
 ## Notes
 - Task 1: ✅ Complete - Environment validation and provider selection working
@@ -21,9 +23,14 @@ Do NOT create detailed breakdowns or sub-tasks here - keep it simple.
 - Task 3: ✅ Complete - SendMessageOutput::Ollama variant, helper methods, metadata extraction, ApiClient integration, 6 unit tests passing
 - Task 4: ✅ Complete - Message format conversion, provider routing, image conversion, conversation history, 5 unit tests passing
 - Task 4.5: ✅ Complete - Model listing integration, persistence working, saved model preferences
-- Task 5: ✅ Complete - Streaming infrastructure in place (currently using non-streaming for stability)
-- Task 6: ✅ Complete - Tool call mapping implemented with capability detection, core tools (fs_read, execute_bash, fs_write, use_aws), streaming integration, all validation checks passing
-- Task 7: ❌ **NEW ISSUE** - MCP tools (like `convert_to_markdown` from fetch server) are not visible to Ollama models, only built-in tools are exposed
+- **Missing Tasks 5 & 6**: These were completed during plugin refactor but are missing from tasks.md
+  - Task 5: ✅ Complete - Streaming Response Handling (infrastructure in place)
+  - Task 6: ✅ Complete - Tool Call Mapping (built-in tools working with Ollama)
+- Task 7: ❌ **CRITICAL BUG** - Tool calls result in blank responses, tool execution completely broken
+- Task 8: ❌ **FUTURE** - Multi-turn Tool Conversations
+- Task 9: ❌ **FUTURE** - Error Handling for Unsupported Models
+- Task 10: ❌ **FUTURE** - Enhanced Thinking Tool Capability Detection
+- Task 11: ❌ **ISSUE** - MCP tools (like `convert_to_markdown` from fetch server) are not visible to Ollama models, only built-in tools are exposed
 
 ## Test Commands
 - `./test_ollama.sh` - Main functionality test (now properly fails on unimplemented features)
@@ -31,6 +38,3 @@ Do NOT create detailed breakdowns or sub-tasks here - keep it simple.
 - `./validate_task4.sh` - Task 4 specific validation
 - `./check_progress.sh` - Overall project progress
 - `./test_ollama_connection.sh` - Ollama server connectivity
-
-## Current Issue
-Testing revealed that the CLI is trying to use AWS model names ("claude-sonnet-4") with Ollama. Task 4.5 will fix this by integrating Ollama model listing with the existing `/model` command.

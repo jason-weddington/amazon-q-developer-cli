@@ -10,6 +10,8 @@ pub enum SendMessageOutput {
     ),
     QDeveloper(amzn_qdeveloper_streaming_client::operation::send_message::SendMessageOutput),
     Mock(Vec<ChatResponseStream>),
+    /// Generic provider streaming (Ollama, OpenAI, Anthropic, etc.)
+    ProviderStreaming(Box<dyn crate::providers::StreamReceiver>),
 }
 
 impl SendMessageOutput {
@@ -22,6 +24,10 @@ impl SendMessageOutput {
                 Ok(output.send_message_response.recv().await?.map(|s| s.into()))
             },
             SendMessageOutput::Mock(vec) => Ok(vec.pop()),
+            SendMessageOutput::ProviderStreaming(stream_receiver) => {
+                // Delegate to the generic StreamReceiver
+                stream_receiver.recv().await
+            },
         }
     }
 
@@ -30,6 +36,7 @@ impl SendMessageOutput {
             SendMessageOutput::Codewhisperer(output) => output.request_id().map(|r| r.to_string()),
             SendMessageOutput::QDeveloper(output) => output.request_id().map(|r| r.to_string()),
             SendMessageOutput::Mock(_) => None,
+            SendMessageOutput::ProviderStreaming(_) => None, // Provider streaming doesn't have AWS request IDs
         }
     }
 }

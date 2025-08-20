@@ -1709,9 +1709,104 @@ This task bridges the gap between our technical implementation and user experien
 
 ---
 
-## Task 7: Tool Result Handling in Conversation History
+## Task 7: Fix Tool Call Execution with Ollama
 
-[To define]
+### Description
+Fix the critical bug where Ollama tool calls result in blank responses due to missing tool call detection in non-streaming responses. This is a fundamental functionality issue that prevents basic tool usage with Ollama models.
+
+### Current Problem
+- Ollama models generate tool calls correctly ✅ (confirmed by direct API testing)
+- Tool calls are ignored in non-streaming response processing ❌
+- Results in blank responses when tools should be executed ❌
+- Tool execution pipeline is partially working but corrupted ❌
+- User sees streaming text but tool calls fail silently ❌
+
+### Research Findings
+Based on comprehensive testing and code analysis (see `task7_research.md`):
+
+1. **Root Cause**: Non-streaming response conversion only extracts `content` field, ignoring `tool_calls`
+2. **Ollama Behavior**: Returns `content: ""` when tool calls are present, but includes tool calls in response
+3. **Pipeline Issue**: Tool execution exists but command parsing is corrupted
+4. **Streaming Paradox**: Code uses `stream: false` but user sees progressive text (needs investigation)
+
+### Implementation Approach
+**Option 2: Switch to Streaming (SELECTED)**
+
+Based on analysis, switching to proper streaming will solve the root cause more elegantly:
+
+```rust
+// Enable streaming in Ollama provider
+let request = OllamaChatRequest {
+    model,
+    messages: ollama_messages,
+    tools: Some(ollama_tools),
+    stream: Some(true), // ← Enable real streaming
+    // ...
+};
+
+let stream_receiver = self.client.chat_stream(request).await?;
+Ok(ProviderResponse::OllamaStreaming(stream_receiver))
+```
+
+**Why Streaming is Better:**
+1. **Solves Tool Result Issue**: Tool results flow naturally through stream
+2. **Authentic Experience**: Real streaming text, not simulated
+3. **Cleaner Architecture**: Eliminates Mock event simulation
+4. **Natural Tool Flow**: Tool calls come in proper stream order
+5. **Consistent with AWS**: Same streaming patterns
+
+**Implementation Steps:**
+1. **Enable streaming** in `send_message_ollama_internal()`
+2. **Implement proper stream parsing** for newline-delimited JSON
+3. **Update response routing** to use `OllamaStreaming` variant
+4. **Remove Mock simulation** code from `providers/mod.rs`
+5. **Test tool execution** end-to-end
+
+### Acceptance Criteria
+- [ ] Tool calls in Ollama responses are detected and processed
+- [ ] Tool execution works end-to-end (request → execution → result → response)
+- [ ] No more blank responses when models attempt to use tools
+- [ ] Tool results are properly integrated into conversation flow
+- [ ] Multi-tool scenarios work correctly
+- [ ] Error handling for tool execution failures
+- [ ] Built-in tools (fs_read, fs_write, execute_bash, use_aws) work with Ollama
+- [ ] Tool execution corruption issues resolved
+
+### Testing Strategy
+1. **Direct API Testing**: Verify Ollama generates tool calls correctly
+2. **Unit Tests**: Test tool call detection and conversion
+3. **Integration Tests**: End-to-end tool execution scenarios
+4. **Manual Testing**: User workflow testing with various tools
+
+### Success Criteria
+```bash
+User: "Create a file called test.txt"
+Assistant: [Executes fs_write tool visibly]
+Assistant: "I've created the file test.txt for you."
+# File actually exists on filesystem
+
+User: "List the current directory"
+Assistant: [Executes execute_bash tool]
+Assistant: "Here are the files in the current directory: ..."
+# Shows actual directory listing
+```
+
+### Files to Modify
+- `crates/chat-cli/src/providers/ollama/mod.rs` - Enable streaming in send_message
+- `crates/chat-cli/src/providers/ollama/types.rs` - Implement proper stream parsing
+- `crates/chat-cli/src/providers/mod.rs` - Remove Mock simulation code
+- Add comprehensive error handling and logging for streaming
+
+### Definition of Done
+- [ ] Tool calls work end-to-end with Ollama models
+- [ ] No blank responses when tools are invoked
+- [ ] Tool execution pipeline is robust and error-free
+- [ ] All built-in tools work correctly
+- [ ] Comprehensive test coverage
+- [ ] User can successfully use tools in conversation
+
+### Priority: CRITICAL
+This is a critical bug that breaks core functionality. Tool calls are fundamental to the Q CLI experience, and their complete failure makes Ollama integration unusable for most practical scenarios.
 
 ---
 
@@ -1765,7 +1860,7 @@ let ollama_tools = if let Some(ollama_client) = &self.ollama_client {
 ## Task 10: Enhanced Thinking Tool Capability Detection
 
 [To define]
-## Task 7: MCP Tools Integration with Ollama
+## Task 11: MCP Tools Integration with Ollama
 
 ### Description
 Integrate MCP (Model Context Protocol) tools with Ollama provider so that tools from MCP servers (like `convert_to_markdown` from fetch server) are visible and usable by Ollama models, not just built-in tools.
@@ -1853,4 +1948,4 @@ Ensure MCP tool calls from Ollama are properly routed to MCP servers and results
 - [ ] Integration tests demonstrate MCP tools working with Ollama
 
 ### Expected Outcome
-After Task 7, Ollama models will have access to the full ecosystem of MCP tools, making them as capable as AWS models in terms of available functionality.
+After Task 11, Ollama models will have access to the full ecosystem of MCP tools, making them as capable as AWS models in terms of available functionality.

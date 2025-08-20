@@ -80,7 +80,10 @@ impl OllamaClient {
                 }
                 
                 let ollama_response: OllamaChatResponse = serde_json::from_str(&line)
-                    .map_err(|e| OllamaError::InvalidResponse(format!("Invalid JSON: {}", e)))?;
+                    .map_err(|e| {
+                        tracing::warn!("Failed to parse Ollama JSON: {} | Line: {}", e, line);
+                        OllamaError::InvalidResponse(format!("Invalid JSON: {} | Line: {}", e, line))
+                    })?;
                 Ok(Some(ollama_response))
             })
             .filter_map(|result| {
