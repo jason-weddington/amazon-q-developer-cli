@@ -755,7 +755,7 @@ mod tests {
 
     use super::*;
     use crate::api_client::model::UserInputMessage;
-    use crate::api_client::ollama::OllamaMessage;
+    use crate::providers::ollama::OllamaMessage;
 
     #[tokio::test]
     async fn create_clients() {
@@ -829,8 +829,6 @@ mod tests {
         assert_eq!(output_content, "Hello! How can I assist you today?");
     }
     
-    #[tokio::test]
-    
     async fn create_dummy_aws_client() -> CodewhispererClient {
         let credentials = Credentials::new("dummy", "dummy", None, None, "dummy");
         let config = aws_config::defaults(behavior_version())
@@ -845,116 +843,4 @@ mod tests {
     }
 }
 
-#[cfg(test)]
-mod task4_tests {
-    use super::*;
-    use crate::api_client::model::{AssistantResponseMessage, UserInputMessage};
-    use crate::util::ModelProvider;
-    use aws_credential_types::Credentials;
-    use aws_types::region::Region;
-    
-    async fn create_dummy_aws_client() -> CodewhispererClient {
-        let credentials = Credentials::new("dummy", "dummy", None, None, "dummy");
-        let config = aws_config::defaults(behavior_version())
-            .region(Region::new("us-east-1"))
-            .credentials_provider(credentials)
-            .load()
-            .await;
-        
-        CodewhispererClient::from_conf(
-            amzn_codewhisperer_client::config::Builder::from(&config).build(),
-        )
-    }
-
-    async fn create_test_api_client() -> ApiClient {
-        ApiClient {
-            client: create_dummy_aws_client().await,
-            streaming_client: None,
-            sigv4_streaming_client: None,
-            
-            mock_client: None,
-            profile: None,
-            model_cache: Arc::new(RwLock::new(None)),
-            provider: ModelProvider::Ollama,
-            external_provider: None,
-        }
-    }
-    
-    #[tokio::test]
-    
-    #[tokio::test]
-    async fn test_convert_conversation_with_history() {
-        let api_client = create_test_api_client().await;
-        let conversation = ConversationState {
-            conversation_id: Some("test-conv".to_string()),
-            user_input_message: UserInputMessage {
-                content: "Follow up question".to_string(),
-                model_id: Some("llama3.2".to_string()),
-                user_input_message_context: None,
-                user_intent: None,
-                images: None,
-            },
-            history: Some(vec![
-                ChatMessage::UserInputMessage(UserInputMessage {
-                    content: "Initial question".to_string(),
-                    model_id: None,
-                    user_input_message_context: None,
-                    user_intent: None,
-                    images: None,
-                }),
-                ChatMessage::AssistantResponseMessage(AssistantResponseMessage {
-                    message_id: None,
-                    content: "Initial response".to_string(),
-                    tool_uses: None,
-                }),
-            ]),
-        };
-        
-        let (messages, model) = api_client.convert_conversation_to_ollama(conversation).unwrap();
-        
-        assert_eq!(messages.len(), 3);
-        assert_eq!(messages[0].role, "user");
-        assert_eq!(messages[0].content, "Initial question");
-        assert_eq!(messages[1].role, "assistant");
-        assert_eq!(messages[1].content, "Initial response");
-        assert_eq!(messages[2].role, "user");
-        assert_eq!(messages[2].content, "Follow up question");
-        assert_eq!(model, "llama3.2");
-    }
-    
-    #[tokio::test]
-    async fn test_convert_conversation_default_model() {
-        let api_client = create_test_api_client().await;
-        let conversation = ConversationState {
-            conversation_id: Some("test-conv".to_string()),
-            user_input_message: UserInputMessage {
-                content: "Hello".to_string(),
-                model_id: None, // No model specified
-                user_input_message_context: None,
-                user_intent: None,
-                images: None,
-            },
-            history: None,
-        };
-        
-        let (messages, model) = api_client.convert_conversation_to_ollama(conversation).unwrap();
-        
-        assert_eq!(messages.len(), 1);
-        assert_eq!(messages[0].content, "Hello");
-        assert_eq!(model, "gpt-oss:120b"); // Updated default model
-    }
-    
-    #[tokio::test]
-    
-    #[tokio::test]
-    async fn test_convert_images_unknown_source() {
-        let api_client = create_test_api_client().await;
-        
-        let unknown_image = ImageBlock {
-            format: ImageFormat::Png,
-            source: ImageSource::Unknown,
-        };
-        let result = api_client.convert_images_to_ollama(Some(vec![unknown_image])).unwrap();
-        assert_eq!(result, None); // Unknown source should be skipped
-    }
-}
+// Note: Task 4 tests moved to plugin system tests in providers/ollama/mod.rs

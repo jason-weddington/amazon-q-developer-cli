@@ -1,5 +1,7 @@
 use async_trait::async_trait;
-use eyre::Result;
+use eyre::{Result, bail};
+use std::collections::HashMap;
+use tracing::{debug, warn};
 
 use crate::api_client::model::ConversationState;
 use crate::api_client::send_message_output::SendMessageOutput;
@@ -96,6 +98,61 @@ impl ProviderRegistry {
     /// List all registered providers
     pub fn list_providers(&self) -> Vec<&str> {
         self.providers.keys().map(|s| s.as_str()).collect()
+    }
+    
+    /// Check if any registered provider requires authentication
+    pub fn requires_auth(&self, provider_name: &str) -> bool {
+        match self.get(provider_name) {
+            Some(provider) => provider.requires_auth(),
+            None => true, // Default to requiring auth for unknown providers
+        }
+    }
+}
+
+/// Environment validation for external providers
+pub fn validate_provider_environment() -> Result<String> {
+    let provider = std::env::var("Q_CLI_MODEL_PROVIDER")
+        .unwrap_or_else(|_| "aws".to_string())
+        .to_lowercase();
+    
+    match provider.as_str() {
+        "aws" => Ok(provider),
+        "ollama" => {
+            // Ollama doesn't require API key, just validate it's a known provider
+            Ok(provider)
+        },
+        "openai" => {
+            // Check for required API key
+            if std::env::var("Q_CLI_MODEL_PROVIDER_API_KEY").is_err() {
+                bail!("Q_CLI_MODEL_PROVIDER_API_KEY environment variable is required when using OpenAI provider");
+            }
+            Ok(provider)
+        },
+        "anthropic" => {
+            // Check for required API key
+            if std::env::var("Q_CLI_MODEL_PROVIDER_API_KEY").is_err() {
+                bail!("Q_CLI_MODEL_PROVIDER_API_KEY environment variable is required when using Anthropic provider");
+            }
+            Ok(provider)
+        },
+        _ => bail!(
+            "Invalid Q_CLI_MODEL_PROVIDER: '{}'. Valid values are: aws, ollama, openai, anthropic", 
+            provider
+        ),
+    }
+}
+
+/// Check if the current provider requires authentication
+pub fn current_provider_requires_auth() -> bool {
+    let provider = std::env::var("Q_CLI_MODEL_PROVIDER")
+        .unwrap_or_else(|_| "aws".to_string())
+        .to_lowercase();
+    
+    match provider.as_str() {
+        "aws" => true,
+        "ollama" => false,
+        "openai" | "anthropic" => false, // They use API keys, not AWS auth
+        _ => true, // Default to requiring auth for unknown providers
     }
 }
 
