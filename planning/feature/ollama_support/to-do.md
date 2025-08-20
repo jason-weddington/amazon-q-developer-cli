@@ -10,9 +10,10 @@ Do NOT create detailed breakdowns or sub-tasks here - keep it simple.
 - [x] Task 2: Implement Basic Ollama HTTP Client
 - [x] Task 3: Add Ollama Variant to SendMessageOutput Enum
 - [x] Task 4: Implement Message Format Conversion
-- [ ] Task 4.5: Integrate Ollama Model Listing with `/model` Command
+- [x] Task 4.5: Integrate Ollama Model Listing with `/model` Command
 - [x] Task 5: Add Streaming Response Handling
 - [x] Task 6: Implement Tool Call Mapping
+- [ ] Task 7: MCP Tools Integration with Ollama
 
 ## Notes
 - Task 1: ✅ Complete - Environment validation and provider selection working
@@ -20,8 +21,9 @@ Do NOT create detailed breakdowns or sub-tasks here - keep it simple.
 - Task 3: ✅ Complete - SendMessageOutput::Ollama variant, helper methods, metadata extraction, ApiClient integration, 6 unit tests passing
 - Task 4: ✅ Complete - Message format conversion, provider routing, image conversion, conversation history, 5 unit tests passing
 - Task 4.5: ✅ Complete - Model listing integration, persistence working, saved model preferences
-- Task 5: ✅ Complete - Real streaming implementation, progressive text display, graceful JSON error handling, all validation checks passing
+- Task 5: ✅ Complete - Streaming infrastructure in place (currently using non-streaming for stability)
 - Task 6: ✅ Complete - Tool call mapping implemented with capability detection, core tools (fs_read, execute_bash, fs_write, use_aws), streaming integration, all validation checks passing
+- Task 7: ❌ **NEW ISSUE** - MCP tools (like `convert_to_markdown` from fetch server) are not visible to Ollama models, only built-in tools are exposed
 
 ## Test Commands
 - `./test_ollama.sh` - Main functionality test (now properly fails on unimplemented features)

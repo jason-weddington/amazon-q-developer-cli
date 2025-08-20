@@ -293,14 +293,15 @@ impl MessageProvider for OllamaProvider {
             model,
             messages: ollama_messages,
             tools: Some(ollama_tools), // Include tools in request
-            stream: Some(true), // Enable streaming
+            stream: Some(false), // Disable streaming for now to get actual responses
             format: None,
             options: None,
             keep_alive: None,
         };
         
-        let stream_receiver = self.client.chat_stream(request).await?;
-        Ok(crate::providers::ProviderResponse::OllamaStreaming(stream_receiver))
+        // Use non-streaming chat for now
+        let response = self.client.chat(request).await?;
+        Ok(crate::providers::ProviderResponse::Ollama(response))
     }
     
     fn provider_name(&self) -> &'static str {
