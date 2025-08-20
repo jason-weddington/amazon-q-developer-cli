@@ -100,7 +100,6 @@ impl From<ModelListResult> for (Vec<Model>, Model) {
 
 type ModelCache = Arc<RwLock<Option<ModelListResult>>>;
 
-#[derive(Clone, Debug)]
 pub struct ApiClient {
     client: CodewhispererClient,
     streaming_client: Option<CodewhispererStreamingClient>,
@@ -110,6 +109,41 @@ pub struct ApiClient {
     profile: Option<AuthProfile>,
     model_cache: ModelCache,
     provider: ModelProvider,
+    // NEW: Plugin system integration
+    external_provider: Option<Box<dyn crate::providers::MessageProvider>>,
+}
+
+impl Clone for ApiClient {
+    fn clone(&self) -> Self {
+        Self {
+            client: self.client.clone(),
+            streaming_client: self.streaming_client.clone(),
+            sigv4_streaming_client: self.sigv4_streaming_client.clone(),
+            ollama_client: self.ollama_client.clone(),
+            mock_client: self.mock_client.clone(),
+            profile: self.profile.clone(),
+            model_cache: self.model_cache.clone(),
+            provider: self.provider.clone(),
+            // Note: external_provider cannot be cloned (trait objects don't support Clone)
+            // This is a limitation we'll need to handle - for now, set to None
+            external_provider: None,
+        }
+    }
+}
+
+impl std::fmt::Debug for ApiClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ApiClient")
+            .field("client", &"CodewhispererClient")
+            .field("streaming_client", &self.streaming_client.is_some())
+            .field("sigv4_streaming_client", &self.sigv4_streaming_client.is_some())
+            .field("ollama_client", &self.ollama_client.is_some())
+            .field("mock_client", &self.mock_client.is_some())
+            .field("profile", &self.profile)
+            .field("provider", &self.provider)
+            .field("external_provider", &self.external_provider.as_ref().map(|p| p.provider_name()))
+            .finish()
+    }
 }
 
 impl ApiClient {
@@ -132,7 +166,7 @@ impl ApiClient {
                 let base_url = env.get("Q_CLI_MODEL_PROVIDER_BASE_URL")
                     .unwrap_or_else(|_| "http://localhost:11434".to_string());
                 
-                let ollama_client = OllamaClient::new(base_url);
+                let ollama_client = OllamaClient::new(base_url.clone());
                 
                 // Test connection during initialization (don't fail if it doesn't work)
                 if let Err(e) = ollama_client.health_check().await {
@@ -166,6 +200,9 @@ impl ApiClient {
                         .build(),
                 );
                 
+                // Create plugin provider alongside existing ollama_client
+                let plugin_provider = crate::providers::OllamaProvider::new(base_url.clone());
+                
                 return Ok(Self {
                     client,
                     streaming_client: None,
@@ -175,6 +212,7 @@ impl ApiClient {
                     profile: None,
                     model_cache: Arc::new(RwLock::new(None)),
                     provider,
+                    external_provider: Some(Box::new(plugin_provider)),
                 });
             },
             ModelProvider::OpenAi | ModelProvider::Anthropic => {
@@ -214,6 +252,7 @@ impl ApiClient {
                 profile: None,
                 model_cache: Arc::new(RwLock::new(None)),
                 provider,
+                external_provider: None,
             };
 
             if let Ok(json) = env.get("Q_MOCK_CHAT_RESPONSE") {
@@ -288,6 +327,7 @@ impl ApiClient {
             profile,
             model_cache: Arc::new(RwLock::new(None)),
             provider,
+            external_provider: None, // No external provider for AWS
         })
     }
 
@@ -501,7 +541,14 @@ impl ApiClient {
     pub async fn send_message(&self, conversation: ConversationState) -> Result<SendMessageOutput, ApiClientError> {
         debug!("Sending conversation: {:#?}", conversation);
 
-        // NEW: Route based on provider
+        // NEW: Check for external provider first (plugin system)
+        if let Some(external_provider) = &self.external_provider {
+            debug!("Using external provider: {}", external_provider.provider_name());
+            let provider_response = external_provider.send_message(conversation).await?;
+            return Ok(provider_response.into());
+        }
+
+        // EXISTING: Route based on provider (fallback to old system)
         match self.provider {
             ModelProvider::Ollama => {
                 return self.send_message_ollama_internal(conversation).await;
@@ -1176,6 +1223,7 @@ mod tests {
             profile: None,
             model_cache: Arc::new(RwLock::new(None)),
             provider: ModelProvider::Aws,
+            external_provider: None,
         };
         
         let messages = vec![OllamaMessage {
@@ -1234,6 +1282,7 @@ mod task4_tests {
             profile: None,
             model_cache: Arc::new(RwLock::new(None)),
             provider: ModelProvider::Ollama,
+            external_provider: None,
         }
     }
     

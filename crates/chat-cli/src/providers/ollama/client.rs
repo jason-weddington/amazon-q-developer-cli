@@ -1,6 +1,7 @@
 use reqwest;
 use serde_json;
 use tokio_stream::StreamExt;
+use futures;
 
 use super::types::*;
 
@@ -83,7 +84,7 @@ impl OllamaClient {
                     .map_err(|e| OllamaError::InvalidResponse(format!("Invalid JSON: {}", e)))?;
                 Ok(Some(ollama_response))
             })
-            .filter_map(|result| async move {
+            .filter_map(|result| {
                 match result {
                     Ok(Some(response)) => Some(Ok(response)),
                     Ok(None) => None, // Skip empty lines

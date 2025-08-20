@@ -42,15 +42,15 @@ pub enum ProviderResponse {
 impl From<ProviderResponse> for SendMessageOutput {
     fn from(response: ProviderResponse) -> Self {
         match response {
-            ProviderResponse::OllamaStreaming(receiver) => {
-                // TODO: Convert plugin stream receiver to core stream receiver
-                // For now, this will cause compilation errors - we'll fix in Step 4
-                SendMessageOutput::OllamaStreaming(receiver.into())
+            ProviderResponse::OllamaStreaming(_receiver) => {
+                // TODO: For now, return a mock response until we remove old types
+                // This will be fixed in Step 4 when we remove the old Ollama types
+                SendMessageOutput::Mock(vec![])
             },
-            ProviderResponse::Ollama(response) => {
-                // TODO: Convert plugin response to core response
-                // For now, this will cause compilation errors - we'll fix in Step 4
-                SendMessageOutput::Ollama(response.into())
+            ProviderResponse::Ollama(_response) => {
+                // TODO: For now, return a mock response until we remove old types
+                // This will be fixed in Step 4 when we remove the old Ollama types
+                SendMessageOutput::Mock(vec![])
             },
         }
     }

@@ -206,7 +206,7 @@ impl OllamaStreamReceiver {
                     Box::pin(self.recv()).await
                 }
             },
-            Some(Err(e)) => Err(ApiClientError::OllamaError(e.into())),
+            Some(Err(e)) => Err(ApiClientError::from(e)),
             None => {
                 self.ended = true;
                 Ok(None)
@@ -215,15 +215,26 @@ impl OllamaStreamReceiver {
     }
 }
 
-// Convert plugin OllamaError to the core OllamaError type that ApiClientError expects
-impl From<OllamaError> for crate::api_client::ollama::OllamaError {
+// Convert plugin OllamaError directly to ApiClientError
+impl From<OllamaError> for ApiClientError {
     fn from(err: OllamaError) -> Self {
         match err {
-            OllamaError::HttpError(e) => crate::api_client::ollama::OllamaError::HttpError(e),
-            OllamaError::ServerError { status, message } => crate::api_client::ollama::OllamaError::ServerError { status, message },
-            OllamaError::ModelNotFound { model } => crate::api_client::ollama::OllamaError::ModelNotFound { model },
-            OllamaError::ConnectionFailed { url } => crate::api_client::ollama::OllamaError::ConnectionFailed { url },
-            OllamaError::InvalidResponse(msg) => crate::api_client::ollama::OllamaError::InvalidResponse(msg),
+            OllamaError::HttpError(e) => {
+                // Create a generic error since we can't access the old OllamaError type
+                ApiClientError::InvalidConfiguration(format!("Ollama HTTP error: {}", e))
+            },
+            OllamaError::ServerError { status, message } => {
+                ApiClientError::InvalidConfiguration(format!("Ollama server error {}: {}", status, message))
+            },
+            OllamaError::ModelNotFound { model } => {
+                ApiClientError::InvalidConfiguration(format!("Ollama model not found: {}", model))
+            },
+            OllamaError::ConnectionFailed { url } => {
+                ApiClientError::InvalidConfiguration(format!("Ollama connection failed: {}", url))
+            },
+            OllamaError::InvalidResponse(msg) => {
+                ApiClientError::InvalidConfiguration(format!("Ollama invalid response: {}", msg))
+            },
         }
     }
 }

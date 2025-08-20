@@ -3,7 +3,6 @@ use eyre::Result;
 use tracing::{debug, warn};
 
 use crate::api_client::model::ConversationState;
-use crate::api_client::send_message_output::SendMessageOutput;
 use crate::api_client::ApiClientError;
 use crate::providers::MessageProvider;
 
