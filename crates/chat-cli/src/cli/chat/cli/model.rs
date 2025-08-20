@@ -171,8 +171,8 @@ pub async fn get_available_models(os: &Os) -> Result<(Vec<ModelInfo>, ModelInfo)
     // Check if using Ollama provider
     if let Ok(provider) = std::env::var("Q_CLI_MODEL_PROVIDER") {
         if provider.to_lowercase() == "ollama" {
-            // For Ollama, get models from the API client
-            match os.client.list_ollama_models().await {
+            // For Ollama, use the external provider to get models
+            match os.client.list_external_models().await {
                 Ok(model_names) => {
                     if model_names.is_empty() {
                         return Err(ChatError::Custom(
