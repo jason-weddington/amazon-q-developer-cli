@@ -19,7 +19,6 @@ use crossterm::style::Stylize;
 use eyre::Result;
 use logging::get_log_level_max;
 use tracing::metadata::LevelFilter;
-use util::ModelProvider;
 
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
@@ -27,8 +26,8 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 fn main() -> Result<ExitCode> {
     color_eyre::install()?;
 
-    // Validate environment variables early
-    ModelProvider::from_env()?;
+    // Validate environment variables early using plugin system
+    crate::providers::validate_provider_environment()?;
 
     let parsed = match cli::Cli::try_parse() {
         Ok(cli) => cli,

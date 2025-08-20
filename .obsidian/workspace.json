@@ -1,0 +1,198 @@
+{
+  "main": {
+    "id": "b7aa66d14a1f01c4",
+    "type": "split",
+    "children": [
+      {
+        "id": "c9fa48b5924a148e",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "b5334caf8ce23cb3",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "planning/feature/ollama_support/tasks.md",
+                "mode": "preview",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "tasks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "950f755c800ad7d0",
+    "type": "split",
+    "children": [
+      {
+        "id": "1a9d0a9e59b5b8ca",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "00443d2072ab3bf7",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "39b7eba5d3b81dbd",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "102dfe439a1d58fc",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "a449361522b21263",
+    "type": "split",
+    "children": [
+      {
+        "id": "0929e44dcf1daeed",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "3ad4d8e041ca3ffc",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "planning/feature/ollama_support/tasks.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for tasks"
+            }
+          },
+          {
+            "id": "54b6b0fa82d08ec7",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "planning/feature/ollama_support/tasks.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from tasks"
+            }
+          },
+          {
+            "id": "d8a5773a64256c1c",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "9a824e08e3659357",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "planning/feature/ollama_support/tasks.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of tasks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false
+    }
+  },
+  "active": "b5334caf8ce23cb3",
+  "lastOpenFiles": [
+    "target/debug/incremental/chat_cli-384rmbkwfkhc9/s-hace2vklnb-1dm7oq4-3b3eh2dsuc93719vfxc6e3p21/work-products.bin",
+    "target/debug/incremental/chat_cli-384rmbkwfkhc9/s-hace2vklnb-1dm7oq4-3b3eh2dsuc93719vfxc6e3p21/query-cache.bin",
+    "target/debug/incremental/chat_cli-384rmbkwfkhc9/s-hace2vklnb-1dm7oq4-3b3eh2dsuc93719vfxc6e3p21/dep-graph.bin",
+    "target/debug/incremental/chat_cli-384rmbkwfkhc9/s-hace2vklnb-1dm7oq4-3b3eh2dsuc93719vfxc6e3p21",
+    "target/debug/incremental/test_mcp_server-30y9urcmharni/s-hace2vkmn7-18mjtfk-9sqmcdca8sjqy4e0bsahv2jcn/work-products.bin",
+    "target/debug/incremental/test_mcp_server-30y9urcmharni/s-hace2vkmn7-18mjtfk-9sqmcdca8sjqy4e0bsahv2jcn/query-cache.bin",
+    "target/debug/incremental/test_mcp_server-30y9urcmharni/s-hace2vkmn7-18mjtfk-9sqmcdca8sjqy4e0bsahv2jcn/dep-graph.bin",
+    "target/debug/incremental/test_mcp_server-30y9urcmharni/s-hace2vkmn7-18mjtfk-9sqmcdca8sjqy4e0bsahv2jcn",
+    "target/debug/incremental/test_mcp_server-30y9urcmharni/s-hace2vkmn7-18mjtfk-working/work-products.bin",
+    "target/debug/incremental/test_mcp_server-30y9urcmharni/s-hace2vkmn7-18mjtfk-working/query-cache.bin",
+    "target/debug/incremental/test_mcp_server-30y9urcmharni/s-hace2vkmn7-18mjtfk-working/dep-graph.part.bin",
+    "planning/feature/ollama_support/refactor_analysis.md",
+    "planning/feature/ollama_support/to-do.md",
+    "planning/feature/ollama_support/tasks.md",
+    "planning/feature/ollama_support/task4_research.md",
+    "planning/feature/ollama_support/task6_research.md",
+    "planning/feature/ollama_support/task5_research.md",
+    "LOCAL_TESTING_GUIDE.md",
+    "docs/codebase.md",
+    "planning/feature/ollama_support/ollama_api_research.md",
+    "planning/feature/ollama_support/feature.md",
+    "planning/feature/ollama_support/ollama_research.md",
+    "AmazonQ.md",
+    "CODE_OF_CONDUCT.md"
+  ]
+}
