@@ -18,12 +18,16 @@ use crossterm::style::Stylize;
 use eyre::Result;
 use logging::get_log_level_max;
 use tracing::metadata::LevelFilter;
+use util::ModelProvider;
 
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 fn main() -> Result<ExitCode> {
     color_eyre::install()?;
+
+    // Validate environment variables early
+    ModelProvider::from_env()?;
 
     let parsed = match cli::Cli::try_parse() {
         Ok(cli) => cli,

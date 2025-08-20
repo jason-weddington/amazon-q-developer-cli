@@ -39,6 +39,7 @@ pub enum Setting {
     McpNoInteractiveTimeout,
     McpLoadedBefore,
     ChatDefaultModel,
+    ChatDefaultOllamaModel,
     ChatDisableMarkdownRendering,
     ChatDefaultAgent,
     ChatDisableAutoCompaction,
@@ -70,6 +71,7 @@ impl AsRef<str> for Setting {
             Self::McpNoInteractiveTimeout => "mcp.noInteractiveTimeout",
             Self::McpLoadedBefore => "mcp.loadedBefore",
             Self::ChatDefaultModel => "chat.defaultModel",
+            Self::ChatDefaultOllamaModel => "chat.defaultOllamaModel",
             Self::ChatDisableMarkdownRendering => "chat.disableMarkdownRendering",
             Self::ChatDefaultAgent => "chat.defaultAgent",
             Self::ChatDisableAutoCompaction => "chat.disableAutoCompaction",
@@ -111,6 +113,7 @@ impl TryFrom<&str> for Setting {
             "mcp.noInteractiveTimeout" => Ok(Self::McpNoInteractiveTimeout),
             "mcp.loadedBefore" => Ok(Self::McpLoadedBefore),
             "chat.defaultModel" => Ok(Self::ChatDefaultModel),
+            "chat.defaultOllamaModel" => Ok(Self::ChatDefaultOllamaModel),
             "chat.disableMarkdownRendering" => Ok(Self::ChatDisableMarkdownRendering),
             "chat.defaultAgent" => Ok(Self::ChatDefaultAgent),
             "chat.disableAutoCompaction" => Ok(Self::ChatDisableAutoCompaction),
@@ -239,6 +242,7 @@ mod test {
         assert_eq!(settings.get(Setting::KnowledgeIndexType), None);
         assert_eq!(settings.get(Setting::McpLoadedBefore), None);
         assert_eq!(settings.get(Setting::ChatDefaultModel), None);
+        assert_eq!(settings.get(Setting::ChatDefaultOllamaModel), None);
         assert_eq!(settings.get(Setting::ChatDisableMarkdownRendering), None);
 
         settings.set(Setting::TelemetryEnabled, true).await.unwrap();

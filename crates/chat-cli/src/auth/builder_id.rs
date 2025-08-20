@@ -544,6 +544,14 @@ pub async fn poll_create_token(
 }
 
 pub async fn is_logged_in(database: &mut Database) -> bool {
+    // Check if using non-AWS provider (bypass auth)
+    if let Ok(provider) = crate::util::ModelProvider::from_env() {
+        if !provider.requires_auth() {
+            debug!("bypassing auth for provider: {}", provider);
+            return true;
+        }
+    }
+
     // Check for BuilderId if not using Sigv4
     if std::env::var("AMAZON_Q_SIGV4").is_ok_and(|v| !v.is_empty()) {
         debug!("logged in using sigv4 credentials");
