@@ -1,3 +1,18 @@
+# ⚠️ **CRITICAL PLUGIN PATTERN REMINDER** ⚠️
+
+**NEVER MODIFY CORE AWS CLI CODE FOR OLLAMA INTEGRATION!**
+
+- ❌ **DO NOT** touch files in `crates/chat-cli/src/cli/chat/tools/`
+- ❌ **DO NOT** modify core AWS streaming, parsing, or tool execution code
+- ❌ **DO NOT** change core `SendMessageOutput`, `ApiClient`, or auth code
+- ✅ **DO** keep all Ollama changes in `crates/chat-cli/src/providers/ollama/`
+- ✅ **DO** use the plugin pattern to integrate with existing systems
+- ✅ **DO** reuse existing tool definitions instead of redefining them
+
+**Why**: Core code changes create rebase conflicts with upstream AWS changes. Our plugin architecture exists to avoid this pain. Stick to the plugin pattern!
+
+---
+
 ## Build and Test Commands
 ```bash
 # Rust Development Commands

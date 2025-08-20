@@ -1,10 +1,7 @@
 use async_trait::async_trait;
 use eyre::{Result, bail};
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use tracing::{debug, warn};
 
-use crate::api_client::model::ConversationState;
+use crate::api_client::model::{ConversationState, ChatResponseStream};
 use crate::api_client::send_message_output::SendMessageOutput;
 use crate::api_client::ApiClientError;
 
@@ -34,37 +31,65 @@ pub trait MessageProvider: Send + Sync {
 }
 
 /// Provider response wrapper that can be converted to SendMessageOutput
+#[derive(Debug)]
 pub enum ProviderResponse {
-    /// Ollama streaming response
-    OllamaStreaming(crate::providers::ollama::OllamaStreamReceiver),
-    /// Ollama non-streaming response  
-    Ollama(crate::providers::ollama::OllamaChatResponse),
-    // Future: OpenAI, Anthropic responses
+    /// Non-streaming response with complete content
+    Complete {
+        content: String,
+        metadata: ResponseMetadata,
+    },
+    /// Streaming response with async receiver
+    Streaming(Box<dyn StreamReceiver>),
+}
+
+/// Generic trait for streaming responses from any provider
+#[async_trait]
+pub trait StreamReceiver: Send + Sync + std::fmt::Debug {
+    /// Receive the next event from the stream
+    async fn recv(&mut self) -> Result<Option<ChatResponseStream>, ApiClientError>;
+    
+    /// Get provider-specific metadata
+    fn metadata(&self) -> ResponseMetadata;
+    
+    /// Check if stream has ended
+    fn is_ended(&self) -> bool;
+}
+
+/// Provider-agnostic response metadata
+#[derive(Debug, Clone)]
+pub enum ResponseMetadata {
+    Ollama {
+        model: String,
+        total_duration: Option<u64>,
+        eval_count: Option<u32>,
+    },
+    OpenAI {
+        model: String,
+        usage: Option<serde_json::Value>,
+    },
+    Anthropic {
+        model: String,
+        usage: Option<serde_json::Value>,
+    },
+    AWS {
+        request_id: Option<String>,
+    },
 }
 
 impl From<ProviderResponse> for SendMessageOutput {
     fn from(response: ProviderResponse) -> Self {
         match response {
-            ProviderResponse::OllamaStreaming(_receiver) => {
-                // Streaming not implemented yet - fallback to mock
+            ProviderResponse::Complete { content, .. } => {
+                // Handle non-streaming responses
                 use crate::api_client::model::ChatResponseStream;
                 let mock_content = vec![
-                    ChatResponseStream::AssistantResponseEvent {
-                        content: "Streaming not yet implemented".to_string(),
-                    }
+                    ChatResponseStream::AssistantResponseEvent { content }
                 ];
                 SendMessageOutput::Mock(mock_content)
             },
-            ProviderResponse::Ollama(response) => {
-                // Convert Ollama response to Mock with actual content
-                use crate::api_client::model::ChatResponseStream;
-                let content = response.message.content.unwrap_or_else(|| "No content from Ollama".to_string());
-                let mock_content = vec![
-                    ChatResponseStream::AssistantResponseEvent {
-                        content,
-                    }
-                ];
-                SendMessageOutput::Mock(mock_content)
+            ProviderResponse::Streaming(stream_receiver) => {
+                // Use the new ProviderStreaming variant for proper integration
+                SendMessageOutput::ProviderStreaming(stream_receiver)
             },
         }
     }

@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "planning/feature/ollama_support/tasks.md",
+                "file": "docs/testing.md",
                 "mode": "preview",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "tasks"
+              "title": "testing"
             }
           }
         ]
@@ -94,7 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "planning/feature/ollama_support/tasks.md",
+                "file": "docs/testing.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -104,7 +104,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for tasks"
+              "title": "Backlinks for testing"
             }
           },
           {
@@ -113,12 +113,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "planning/feature/ollama_support/tasks.md",
+                "file": "docs/testing.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Outgoing links from tasks"
+              "title": "Outgoing links from testing"
             }
           },
           {
@@ -142,13 +142,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "planning/feature/ollama_support/tasks.md",
+                "file": "docs/testing.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of tasks"
+              "title": "Outline of testing"
             }
           }
         ]
@@ -170,17 +170,17 @@
   },
   "active": "b5334caf8ce23cb3",
   "lastOpenFiles": [
-    "target/debug/incremental/chat_cli-384rmbkwfkhc9/s-haceomovfv-0m9h9ym-at89519y1ypt4fyyvwg988w4a/query-cache.bin",
-    "target/debug/incremental/chat_cli-384rmbkwfkhc9/s-haceomovfv-0m9h9ym-at89519y1ypt4fyyvwg988w4a/work-products.bin",
-    "target/debug/incremental/chat_cli-384rmbkwfkhc9/s-haceomovfv-0m9h9ym-at89519y1ypt4fyyvwg988w4a/dep-graph.bin",
-    "target/debug/incremental/chat_cli-384rmbkwfkhc9/s-haceomovfv-0m9h9ym-at89519y1ypt4fyyvwg988w4a",
-    "target/debug/incremental/test_mcp_server-30y9urcmharni/s-haceomov5v-0c0nwds-a9kp16s3c198slrlknom4djng/query-cache.bin",
-    "target/debug/incremental/test_mcp_server-30y9urcmharni/s-haceomov5v-0c0nwds-a9kp16s3c198slrlknom4djng/work-products.bin",
-    "target/debug/incremental/test_mcp_server-30y9urcmharni/s-haceomov5v-0c0nwds-a9kp16s3c198slrlknom4djng/dep-graph.bin",
-    "target/debug/incremental/test_mcp_server-30y9urcmharni/s-haceomov5v-0c0nwds-a9kp16s3c198slrlknom4djng",
-    "target/debug/incremental/chat_cli-384rmbkwfkhc9/s-haceomovfv-0m9h9ym-working/work-products.bin",
-    "target/debug/incremental/chat_cli-384rmbkwfkhc9/s-haceomovfv-0m9h9ym-working/dep-graph.part.bin",
-    "target/debug/incremental/chat_cli-384rmbkwfkhc9/s-haceomovfv-0m9h9ym-working/query-cache.bin",
+    "target/debug/incremental/chat_cli-2l9iaqlw1hvxk/s-hacfpqmb6c-1o8hwqw-68h5qrwhpjdnf97o4xvp6y7z9/work-products.bin",
+    "target/debug/incremental/chat_cli-2l9iaqlw1hvxk/s-hacfpqmb6c-1o8hwqw-68h5qrwhpjdnf97o4xvp6y7z9/query-cache.bin",
+    "target/debug/incremental/chat_cli-2l9iaqlw1hvxk/s-hacfpqmb6c-1o8hwqw-68h5qrwhpjdnf97o4xvp6y7z9/f43w7rpkdqs2iz69r5cmyzzmi.o",
+    "target/debug/incremental/chat_cli-2l9iaqlw1hvxk/s-hacfpqmb6c-1o8hwqw-68h5qrwhpjdnf97o4xvp6y7z9/f17h9taowhy30fm2v4z5e9yk6.o",
+    "target/debug/incremental/chat_cli-2l9iaqlw1hvxk/s-hacfpqmb6c-1o8hwqw-68h5qrwhpjdnf97o4xvp6y7z9/eulw7mxp79u7n8p6m20h5dmip.o",
+    "target/debug/incremental/chat_cli-2l9iaqlw1hvxk/s-hacfpqmb6c-1o8hwqw-68h5qrwhpjdnf97o4xvp6y7z9/epr4djfh1wcw8oyggw68ter6c.o",
+    "target/debug/incremental/chat_cli-2l9iaqlw1hvxk/s-hacfpqmb6c-1o8hwqw-68h5qrwhpjdnf97o4xvp6y7z9/eo19iedxvwkvtsb0j6fe6cze4.o",
+    "target/debug/incremental/chat_cli-2l9iaqlw1hvxk/s-hacfpqmb6c-1o8hwqw-68h5qrwhpjdnf97o4xvp6y7z9/enxhalceeq7smt4rm9x8k0fp9.o",
+    "target/debug/incremental/chat_cli-2l9iaqlw1hvxk/s-hacfpqmb6c-1o8hwqw-68h5qrwhpjdnf97o4xvp6y7z9/emqn39u9lyb31jtapcg85ko90.o",
+    "target/debug/incremental/chat_cli-2l9iaqlw1hvxk/s-hacfpqmb6c-1o8hwqw-68h5qrwhpjdnf97o4xvp6y7z9/eksya63qfa9ll3nhusgmq5nc0.o",
+    "target/debug/incremental/chat_cli-2l9iaqlw1hvxk/s-hacfpqmb6c-1o8hwqw-68h5qrwhpjdnf97o4xvp6y7z9/ej628nssbk4y7egp2f677huyi.o",
     "docs/SUMMARY.md",
     "docs/setup.md",
     "docs/knowledge-management.md",
@@ -196,12 +196,10 @@
     "planning/feature/ollama_support/tasks.md",
     "planning/feature/ollama_support/refactor_analysis.md",
     "planning/feature/ollama_support/to-do.md",
-    "planning/feature/ollama_support/tasks.md",
     "planning/feature/ollama_support/task4_research.md",
     "planning/feature/ollama_support/task6_research.md",
     "planning/feature/ollama_support/task5_research.md",
     "LOCAL_TESTING_GUIDE.md",
-    "docs/codebase.md",
     "planning/feature/ollama_support/ollama_api_research.md",
     "planning/feature/ollama_support/feature.md",
     "planning/feature/ollama_support/ollama_research.md",

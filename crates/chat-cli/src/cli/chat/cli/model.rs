@@ -133,8 +133,6 @@ pub async fn select_model(os: &mut Os, session: &mut ChatSession) -> Result<Opti
                 // Save Ollama model selection
                 if let Err(e) = os.database.settings.set(crate::database::settings::Setting::ChatDefaultOllamaModel, selected.model_id.as_str()).await {
                     tracing::warn!("Failed to save Ollama model preference: {}", e);
-                } else {
-                    tracing::debug!("Saved Ollama model preference: {}", selected.model_id);
                 }
             }
             // Note: AWS model saving would go here if it doesn't exist elsewhere
@@ -204,7 +202,6 @@ pub async fn get_available_models(os: &Os) -> Result<(Vec<ModelInfo>, ModelInfo)
                         ollama_models[0].clone()
                     };
                     
-                    tracing::debug!("Successfully fetched {} Ollama models, default: {}", ollama_models.len(), default_model.model_id);
                     return Ok((ollama_models, default_model));
                 },
                 Err(e) => {

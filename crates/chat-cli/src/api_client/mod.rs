@@ -41,18 +41,13 @@ use tokio::sync::RwLock;
 use tracing::{
     debug,
     error,
-    warn,
 };
 
 use crate::api_client::credentials::CredentialsChain;
 use crate::api_client::delay_interceptor::DelayTrackingInterceptor;
 use crate::api_client::model::{
-    ChatMessage,
     ChatResponseStream,
     ConversationState,
-    ImageBlock,
-    ImageFormat,
-    ImageSource,
 };
 use crate::api_client::opt_out::OptOutInterceptor;
 use crate::auth::builder_id::BearerResolver;
@@ -771,7 +766,7 @@ mod tests {
 
     use super::*;
     use crate::api_client::model::UserInputMessage;
-    use crate::providers::ollama::OllamaMessage;
+    
 
     #[tokio::test]
     async fn create_clients() {
