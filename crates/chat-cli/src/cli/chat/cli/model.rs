@@ -65,14 +65,14 @@ impl ModelInfo {
 pub struct ModelArgs;
 
 impl ModelArgs {
-    pub async fn execute(self, os: &Os, session: &mut ChatSession) -> Result<ChatState, ChatError> {
+    pub async fn execute(self, os: &mut Os, session: &mut ChatSession) -> Result<ChatState, ChatError> {
         Ok(select_model(os, session).await?.unwrap_or(ChatState::PromptUser {
             skip_printing_tools: false,
         }))
     }
 }
 
-pub async fn select_model(os: &Os, session: &mut ChatSession) -> Result<Option<ChatState>, ChatError> {
+pub async fn select_model(os: &mut Os, session: &mut ChatSession) -> Result<Option<ChatState>, ChatError> {
     queue!(session.stderr, style::Print("\n"))?;
 
     // Fetch available models from service
@@ -127,6 +127,19 @@ pub async fn select_model(os: &Os, session: &mut ChatSession) -> Result<Option<C
         session.conversation.model_info = Some(selected.clone());
         let display_name = selected.display_name();
 
+        // Save the selected model for future sessions
+        if let Ok(provider) = std::env::var("Q_CLI_MODEL_PROVIDER") {
+            if provider.to_lowercase() == "ollama" {
+                // Save Ollama model selection
+                if let Err(e) = os.database.settings.set(crate::database::settings::Setting::ChatDefaultOllamaModel, selected.model_id.as_str()).await {
+                    tracing::warn!("Failed to save Ollama model preference: {}", e);
+                } else {
+                    tracing::debug!("Saved Ollama model preference: {}", selected.model_id);
+                }
+            }
+            // Note: AWS model saving would go here if it doesn't exist elsewhere
+        }
+
         queue!(
             session.stderr,
             style::Print("\n"),
@@ -155,6 +168,56 @@ pub async fn get_model_info(model_id: &str, os: &Os) -> Result<ModelInfo, ChatEr
 
 /// Get available models with caching support
 pub async fn get_available_models(os: &Os) -> Result<(Vec<ModelInfo>, ModelInfo), ChatError> {
+    // Check if using Ollama provider
+    if let Ok(provider) = std::env::var("Q_CLI_MODEL_PROVIDER") {
+        if provider.to_lowercase() == "ollama" {
+            // For Ollama, get models from the API client
+            match os.client.list_ollama_models().await {
+                Ok(model_names) => {
+                    if model_names.is_empty() {
+                        return Err(ChatError::Custom(
+                            "No Ollama models found. Pull a model first:\n  ollama pull llama3.2\n  ollama pull codellama".into()
+                        ));
+                    }
+                    
+                    let ollama_models: Vec<ModelInfo> = model_names
+                        .into_iter()
+                        .map(|name| ModelInfo {
+                            model_name: Some(name.clone()),
+                            model_id: name,
+                            context_window_tokens: 200_000, // Default context window
+                        })
+                        .collect();
+                    
+                    // Check for saved Ollama model preference
+                    let default_model = if let Some(saved_model_id) = os.database.settings.get_string(crate::database::settings::Setting::ChatDefaultOllamaModel) {
+                        // Try to find the saved model in available models
+                        ollama_models.iter()
+                            .find(|m| m.model_id == saved_model_id)
+                            .cloned()
+                            .unwrap_or_else(|| {
+                                tracing::warn!("Saved Ollama model '{}' not found, using first available", saved_model_id);
+                                ollama_models[0].clone()
+                            })
+                    } else {
+                        // No saved preference, use first available
+                        ollama_models[0].clone()
+                    };
+                    
+                    tracing::debug!("Successfully fetched {} Ollama models, default: {}", ollama_models.len(), default_model.model_id);
+                    return Ok((ollama_models, default_model));
+                },
+                Err(e) => {
+                    tracing::error!("Failed to fetch Ollama models: {}", e);
+                    return Err(ChatError::Custom(
+                        "Failed to connect to Ollama server. Make sure it's running:\n  ollama serve".into()
+                    ));
+                }
+            }
+        }
+    }
+
+    // Existing AWS logic
     let endpoint = Endpoint::configured_value(&os.database);
     let region = endpoint.region().as_ref();
 

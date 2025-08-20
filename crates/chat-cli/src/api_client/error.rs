@@ -100,6 +100,17 @@ pub enum ApiClientError {
 
     #[error("No default model found in the ListAvailableModels API response")]
     DefaultModelNotFound,
+
+    // Provider configuration errors
+    #[error("Invalid configuration: {0}")]
+    InvalidConfiguration(String),
+
+    #[error("Unsupported provider: {0}")]
+    UnsupportedProvider(String),
+
+    // Ollama client error
+    #[error("Ollama error: {0}")]
+    OllamaError(#[from] crate::api_client::ollama::OllamaError),
 }
 
 impl ApiClientError {
@@ -125,6 +136,14 @@ impl ApiClientError {
             Self::Credentials(_e) => None,
             Self::ListAvailableModelsError(e) => sdk_status_code(e),
             Self::DefaultModelNotFound => None,
+            Self::InvalidConfiguration(_) => None,
+            Self::UnsupportedProvider(_) => None,
+            Self::OllamaError(ollama_error) => {
+                match ollama_error {
+                    crate::api_client::ollama::OllamaError::ServerError { status, .. } => Some(*status),
+                    _ => None,
+                }
+            },
         }
     }
 }
@@ -152,6 +171,9 @@ impl ReasonCode for ApiClientError {
             Self::Credentials(_) => "CredentialsError".to_string(),
             Self::ListAvailableModelsError(e) => sdk_error_code(e),
             Self::DefaultModelNotFound => "DefaultModelNotFound".to_string(),
+            Self::InvalidConfiguration(_) => "InvalidConfiguration".to_string(),
+            Self::UnsupportedProvider(_) => "UnsupportedProvider".to_string(),
+            Self::OllamaError(_) => "OllamaError".to_string(),
         }
     }
 }
