@@ -6,6 +6,7 @@ mod database;
 mod logging;
 mod mcp_client;
 mod os;
+mod providers;
 mod request;
 mod telemetry;
 mod util;
