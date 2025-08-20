@@ -1,7 +1,6 @@
 use reqwest;
 use serde_json;
 use tokio_stream::StreamExt;
-use futures;
 
 use super::types::*;
 
