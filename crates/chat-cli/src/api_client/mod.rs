@@ -4,7 +4,6 @@ mod delay_interceptor;
 mod endpoints;
 mod error;
 pub mod model;
-mod ollama;
 mod opt_out;
 pub mod profile;
 mod retry_classifier;
@@ -35,13 +34,6 @@ pub use endpoints::Endpoint;
 pub use error::ApiClientError;
 use parking_lot::Mutex;
 pub use profile::list_available_profiles;
-pub use ollama::{
-    OllamaClient, 
-    OllamaMessage, 
-    OllamaChatRequest,
-    OllamaTool,
-    OllamaFunction,
-};
 pub use send_message_output::SendMessageOutput;
 use serde_json::Map;
 use tokio::sync::RwLock;
@@ -103,7 +95,6 @@ pub struct ApiClient {
     client: CodewhispererClient,
     streaming_client: Option<CodewhispererStreamingClient>,
     sigv4_streaming_client: Option<QDeveloperStreamingClient>,
-    ollama_client: Option<OllamaClient>,
     mock_client: Option<Arc<Mutex<std::vec::IntoIter<Vec<ChatResponseStream>>>>>,
     profile: Option<AuthProfile>,
     model_cache: ModelCache,
@@ -118,7 +109,6 @@ impl Clone for ApiClient {
             client: self.client.clone(),
             streaming_client: self.streaming_client.clone(),
             sigv4_streaming_client: self.sigv4_streaming_client.clone(),
-            ollama_client: self.ollama_client.clone(),
             mock_client: self.mock_client.clone(),
             profile: self.profile.clone(),
             model_cache: self.model_cache.clone(),
@@ -136,7 +126,6 @@ impl std::fmt::Debug for ApiClient {
             .field("client", &"CodewhispererClient")
             .field("streaming_client", &self.streaming_client.is_some())
             .field("sigv4_streaming_client", &self.sigv4_streaming_client.is_some())
-            .field("ollama_client", &self.ollama_client.is_some())
             .field("mock_client", &self.mock_client.is_some())
             .field("profile", &self.profile)
             .field("provider", &self.provider)
@@ -156,68 +145,18 @@ impl ApiClient {
         let provider = ModelProvider::from_env()
             .map_err(|e| ApiClientError::InvalidConfiguration(e.to_string()))?;
         
-        // For now, only AWS is implemented
-        match provider {
-            ModelProvider::Aws => {
-                // Continue with existing AWS client creation logic
-            },
+        // Create external provider based on provider type
+        let external_provider = match provider {
             ModelProvider::Ollama => {
                 let base_url = env.get("Q_CLI_MODEL_PROVIDER_BASE_URL")
                     .unwrap_or_else(|_| "http://localhost:11434".to_string());
-                
-                let ollama_client = OllamaClient::new(base_url.clone());
-                
-                // Test connection during initialization (don't fail if it doesn't work)
-                if let Err(e) = ollama_client.health_check().await {
-                    warn!("Ollama health check failed: {}", e);
-                }
-                
-                // We still need to create a minimal AWS client for compatibility
-                // Use the same endpoint handling as the main AWS case
-                let endpoint = endpoint.unwrap_or(Endpoint::configured_value(database));
-                
-                let credentials = Credentials::new("dummy", "dummy", None, None, "dummy");
-                let bearer_sdk_config = aws_config::defaults(behavior_version())
-                    .region(endpoint.region.clone())
-                    .credentials_provider(credentials)
-                    .timeout_config(timeout_config(database))
-                    .retry_config(retry_config())
-                    .load()
-                    .await;
-                
-                let client = CodewhispererClient::from_conf(
-                    amzn_codewhisperer_client::config::Builder::from(&bearer_sdk_config)
-                        .http_client(crate::aws_common::http_client::client())
-                        .interceptor(OptOutInterceptor::new(database))
-                        .interceptor(UserAgentOverrideInterceptor::new())
-                        .interceptor(DelayTrackingInterceptor::new())
-                        .bearer_token_resolver(BearerResolver)
-                        .app_name(app_name())
-                        .endpoint_url(endpoint.url())
-                        .retry_classifier(retry_classifier::QCliRetryClassifier::new())
-                        .stalled_stream_protection(stalled_stream_protection_config())
-                        .build(),
-                );
-                
-                // Create plugin provider alongside existing ollama_client
-                let plugin_provider = crate::providers::OllamaProvider::new(base_url.clone());
-                
-                return Ok(Self {
-                    client,
-                    streaming_client: None,
-                    sigv4_streaming_client: None,
-                    ollama_client: Some(ollama_client),
-                    mock_client: None,
-                    profile: None,
-                    model_cache: Arc::new(RwLock::new(None)),
-                    provider,
-                    external_provider: Some(Box::new(plugin_provider)),
-                });
+                Some(Box::new(crate::providers::OllamaProvider::new(base_url)) as Box<dyn crate::providers::MessageProvider>)
             },
+            ModelProvider::Aws => None, // No external provider for AWS
             ModelProvider::OpenAi | ModelProvider::Anthropic => {
-                return Err(ApiClientError::UnsupportedProvider(format!("{}", provider)));
+                return Err(ApiClientError::UnsupportedProvider(format!("{:?}", provider)));
             },
-        }
+        };
 
         let endpoint = endpoint.unwrap_or(Endpoint::configured_value(database));
 
@@ -246,12 +185,11 @@ impl ApiClient {
                 client,
                 streaming_client: None,
                 sigv4_streaming_client: None,
-                ollama_client: None,
                 mock_client: None,
                 profile: None,
                 model_cache: Arc::new(RwLock::new(None)),
                 provider,
-                external_provider: None,
+                external_provider,
             };
 
             if let Ok(json) = env.get("Q_MOCK_CHAT_RESPONSE") {
@@ -321,12 +259,11 @@ impl ApiClient {
             client,
             streaming_client,
             sigv4_streaming_client,
-            ollama_client: None,
             mock_client: None,
             profile,
             model_cache: Arc::new(RwLock::new(None)),
             provider,
-            external_provider: None, // No external provider for AWS
+            external_provider,
         })
     }
 
@@ -534,14 +471,15 @@ impl ApiClient {
 
         // EXISTING: Route based on provider (fallback to old system)
         match self.provider {
-            ModelProvider::Ollama => {
-                return self.send_message_ollama_internal(conversation).await;
-            },
             ModelProvider::Aws => {
                 // Continue with existing AWS logic below
             },
             ModelProvider::OpenAi | ModelProvider::Anthropic => {
                 return Err(ApiClientError::UnsupportedProvider(format!("{:?}", self.provider)));
+            },
+            ModelProvider::Ollama => {
+                // This should not happen since external_provider should handle Ollama
+                return Err(ApiClientError::UnsupportedProvider("Ollama should be handled by external provider".to_string()));
             },
         }
 
