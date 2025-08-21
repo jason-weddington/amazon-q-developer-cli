@@ -28,6 +28,9 @@ pub trait MessageProvider: Send + Sync {
     
     /// Test connection to the provider
     async fn test_connection(&self) -> Result<bool, ApiClientError>;
+    
+    /// Get context window size for a specific model
+    async fn get_model_context_window(&self, model: &str) -> Result<Option<usize>, ApiClientError>;
 }
 
 /// Provider response wrapper that can be converted to SendMessageOutput

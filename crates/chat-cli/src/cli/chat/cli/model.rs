@@ -178,31 +178,38 @@ pub async fn get_available_models(os: &Os) -> Result<(Vec<ModelInfo>, ModelInfo)
                         ));
                     }
                     
-                    let ollama_models: Vec<ModelInfo> = model_names
-                        .into_iter()
-                        .map(|name| ModelInfo {
+                    // Build models with dynamic context window querying
+                    let mut external_models = Vec::new();
+                    for name in model_names {
+                        // Use external provider to get context window info
+                        let context_window_tokens = match os.client.get_external_model_context_window(&name).await {
+                            Ok(Some(size)) => size,
+                            Ok(None) | Err(_) => 200_000, // Fallback to default
+                        };
+                        
+                        external_models.push(ModelInfo {
                             model_name: Some(name.clone()),
                             model_id: name,
-                            context_window_tokens: 200_000, // Default context window
-                        })
-                        .collect();
+                            context_window_tokens,
+                        });
+                    }
                     
                     // Check for saved Ollama model preference
                     let default_model = if let Some(saved_model_id) = os.database.settings.get_string(crate::database::settings::Setting::ChatDefaultOllamaModel) {
                         // Try to find the saved model in available models
-                        ollama_models.iter()
+                        external_models.iter()
                             .find(|m| m.model_id == saved_model_id)
                             .cloned()
                             .unwrap_or_else(|| {
                                 tracing::warn!("Saved Ollama model '{}' not found, using first available", saved_model_id);
-                                ollama_models[0].clone()
+                                external_models[0].clone()
                             })
                     } else {
                         // No saved preference, use first available
-                        ollama_models[0].clone()
+                        external_models[0].clone()
                     };
                     
-                    return Ok((ollama_models, default_model));
+                    return Ok((external_models, default_model));
                 },
                 Err(e) => {
                     tracing::error!("Failed to fetch Ollama models: {}", e);

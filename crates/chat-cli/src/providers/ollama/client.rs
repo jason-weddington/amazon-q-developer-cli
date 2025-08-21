@@ -155,6 +155,73 @@ impl OllamaClient {
         Ok(capabilities.contains(&capability.to_string()))
     }
     
+    /// Get model context window size from Ollama API
+    pub async fn get_model_context_window(&self, model: &str) -> Result<Option<usize>, OllamaError> {
+        let url = format!("{}/api/show", self.base_url);
+        let request = serde_json::json!({
+            "name": model
+        });
+        
+        let response = self.client
+            .post(&url)
+            .json(&request)
+            .send()
+            .await
+            .map_err(OllamaError::HttpError)?;
+            
+        if !response.status().is_success() {
+            let status = response.status().as_u16();
+            let message = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(OllamaError::ServerError { status, message });
+        }
+        
+        let model_info: OllamaModelInfo = response
+            .json()
+            .await
+            .map_err(|e| OllamaError::InvalidResponse(e.to_string()))?;
+        
+        // Try to extract context window from model_info
+        // Different models may use different field names
+        let context_fields = [
+            "gptoss.context_length",     // gpt-oss models (no hyphen)
+            "gpt-oss.context_length",    // gpt-oss models (with hyphen, just in case)
+            "context_length", 
+            "max_position_embeddings",
+            "n_ctx",
+            "max_seq_len"
+        ];
+        
+        for field in &context_fields {
+            if let Some(value) = model_info.model_info.get(field) {
+                if let Some(context_size) = value.as_u64() {
+                    tracing::debug!("Found context window for model {}: {} tokens (field: {})", model, context_size, field);
+                    return Ok(Some(context_size as usize));
+                }
+            }
+        }
+        
+        tracing::debug!("No context window information found for model {}", model);
+        Ok(None)
+    }
+    
+    /// Get model context window with fallback to default
+    pub async fn get_model_context_window_with_fallback(&self, model: &str) -> usize {
+        match self.get_model_context_window(model).await {
+            Ok(Some(size)) => {
+                tracing::debug!("Using context window {} for model {}", size, model);
+                size
+            },
+            Ok(None) => {
+                tracing::warn!("No context window info found for model {}, using default 200K", model);
+                200_000
+            },
+            Err(e) => {
+                tracing::warn!("Failed to query context window for model {}: {}, using default 200K", model, e);
+                200_000
+            }
+        }
+    }
+    
     /// Health check - verify Ollama server is accessible
     pub async fn health_check(&self) -> Result<bool, OllamaError> {
         let url = format!("{}/api/tags", self.base_url);

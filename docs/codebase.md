@@ -70,7 +70,66 @@ src/
 
 ## Architecture Patterns
 
-### 1. Modular Crate Design
+### 1. Os (Operating System Abstraction Layer)
+
+The `Os` struct is a **dependency injection container** that provides testable interfaces to all system operations. Despite its name, it's not just "Operating System" info - it's the entire **application context**.
+
+#### **Structure**
+```rust
+pub struct Os {
+    pub env: Env,           // Environment variables (std::env wrapper)
+    pub fs: Fs,             // File system operations (tokio::fs wrapper)  
+    pub sysinfo: SysInfo,   // System information
+    pub database: Database, // Local SQLite database
+    pub client: ApiClient,  // AWS API client + external providers
+    pub telemetry: TelemetryThread, // Usage analytics
+}
+```
+
+#### **Design Philosophy**
+From the code documentation:
+> "Every operation that accesses the file system, environment, or other related platform primitives should be done through a [Context] as this enables testing otherwise untestable code paths in unit tests."
+
+#### **Key Benefits**
+- **Testability**: All system operations go through `Os`, making them mockable in tests
+- **Dependency Injection**: Instead of calling `std::fs::read()` directly, you call `os.fs.read()`
+- **Centralized Access**: All system resources available in one place
+- **Cross-Platform**: Abstracts platform differences (Windows vs Unix paths, etc.)
+
+#### **Common Patterns**
+```rust
+// Instead of direct system calls:
+let content = std::fs::read_to_string("file.txt")?;
+let var = std::env::var("HOME")?;
+
+// Use Os abstraction:
+let content = os.fs.read_to_string("file.txt").await?;
+let var = os.env.get("HOME")?;
+```
+
+#### **Circular Dependency Challenge**
+When external providers (like `OllamaProvider`) need access to `Os` components:
+```rust
+// Problem: OllamaProvider lives inside os.client
+Os {
+    client: ApiClient {
+        external_provider: Some(OllamaProvider) ← We are here
+    }
+    database: Database ← We need this for settings
+}
+
+// Solution: Pass specific components instead of full Os
+async fn get_ollama_tools(&self, model: &str, database: &Database) -> Result<Vec<OllamaTool>, ApiClientError>
+```
+
+#### **Alternative Names**
+The `Os` name can be confusing. It's more like:
+- **ApplicationContext** 
+- **SystemServices**
+- **DependencyContainer**
+- **RuntimeEnvironment**
+
+### 2. Modular Crate Design
 - **Separation of Concerns**: Each AWS service has its own client crate
 - **Workspace Dependencies**: Shared dependencies defined at workspace level
 - **Feature Flags**: Optional functionality controlled via Cargo features

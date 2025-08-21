@@ -145,6 +145,7 @@ To bootstrap a new project with the standard planning structure:
 - Mark the task as completed in to-do.md (check the box)
 - Run `cargo fix --bin "chat_cli" --tests --allow-dirty` to clean up code
 - Commit changes to git with a meaningful commit message
+- **META-LEARNING**: If you observe interesting patterns about AI development, multi-agent approaches, architectural decision-making, or other meta-insights during our work, point them out explicitly. These insights help with broader AI engineering research.
 - Stop and wait for feedback before moving to the next task
 
 **File Relationship**: tasks.md contains detailed task descriptions with acceptance criteria and implementation notes. to-do.md contains a simple checklist that maps 1:1 to those tasks - one checkbox per task, no detailed breakdowns.

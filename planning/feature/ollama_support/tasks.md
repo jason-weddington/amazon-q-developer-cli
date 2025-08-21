@@ -1825,41 +1825,567 @@ Implement proper error handling and capability checking for models that don't su
 - Code always sends tools to every model regardless of capability
 - Models without tool support (e.g., deepseek-r1:8b) return HTTP 400 errors
 - Error: `"registry.ollama.ai/library/deepseek-r1:8b does not support tools"`
-- Need to check model capabilities before including tools in requests
+- User gets cryptic error instead of working chat functionality
 
 ### Research Findings
-- deepseek-r1:8b capabilities: `["completion", "thinking"]` (no "tools")
-- gpt-oss:120b capabilities: `["completion", "tools", "thinking"]` (full support)
-- Ollama provides capability detection via `/api/show` endpoint
+**Models WITH tool support:**
+- `gpt-oss:120b` capabilities: `["completion", "tools", "thinking"]` ✅
+- `llama3.2` capabilities: `["completion", "tools"]` ✅
 
-### Implementation Approach
+**Models WITHOUT tool support:**
+- `deepseek-r1:8b` capabilities: `["completion", "thinking"]` ❌ (no "tools")
+- Many older/specialized models lack tool support
+
+**Existing Infrastructure:**
+- We already have `supports_capability()` method in `OllamaClient`
+- `/api/show` endpoint provides capability detection
+- Need to integrate into `send_message` flow
+
+### Implementation Plan
+
+#### **Phase 1: Core Capability Check**
+Modify `send_message` in `crates/chat-cli/src/providers/ollama/mod.rs`:
+
 ```rust
-// Check capabilities before sending tools
-let ollama_tools = if let Some(ollama_client) = &self.ollama_client {
-    if ollama_client.supports_capability(&model, "tools").await.unwrap_or(false) {
+async fn send_message(&self, conversation: ConversationState) -> Result<crate::providers::ProviderResponse, ApiClientError> {
+    let (ollama_messages, model) = self.convert_conversation_to_ollama(conversation)?;
+    
+    // NEW: Check if model supports tools before including them
+    let ollama_tools = if self.client.supports_capability(&model, "tools").await.unwrap_or(false) {
         Some(self.get_ollama_tools(&model).await?)
     } else {
-        tracing::info!("Model {} does not support tools", model);
-        None // Send without tools
+        tracing::info!("Model {} does not support tools, proceeding with chat-only mode", model);
+        None
+    };
+    
+    let request = OllamaChatRequest {
+        model,
+        messages: ollama_messages,
+        tools: ollama_tools, // ← Conditional based on capability
+        stream: Some(true),
+        format: None,
+        options: None,
+        keep_alive: None,
+    };
+    
+    let stream_receiver = self.client.chat_stream(request).await?;
+    Ok(crate::providers::ProviderResponse::Streaming(Box::new(stream_receiver)))
+}
+```
+
+#### **Phase 2: Enhanced Error Handling**
+Add robust error handling for capability detection:
+
+```rust
+async fn check_model_supports_tools(&self, model: &str) -> bool {
+    match self.client.supports_capability(model, "tools").await {
+        Ok(supports) => supports,
+        Err(e) => {
+            tracing::warn!("Failed to check tool capability for model {}: {}. Assuming no tool support.", model, e);
+            false // Safe default: assume no tools
+        }
     }
-} else {
-    None
-};
+}
+```
+
+#### **Phase 3: User Experience Improvements**
+Add user-friendly messaging and model capability display.
+
+### Testing Strategy
+
+#### **Manual Test Cases**
+```bash
+# Test 1: Non-tool model should work for basic chat
+Q_CLI_MODEL_PROVIDER=ollama q chat
+/model
+# Select deepseek-r1:8b
+hello!  # Should work without HTTP 400 error
+
+# Test 2: Tool-capable model should include tools
+Q_CLI_MODEL_PROVIDER=ollama q chat
+/model  
+# Select gpt-oss:120b
+create a file test.txt  # Should work with tools
+
+# Test 3: Network failure handling
+# Stop Ollama server temporarily during capability check
+# Should default to no tools, not crash
+```
+
+#### **Unit Tests**
+```rust
+#[tokio::test]
+async fn test_model_without_tools_works() {
+    let provider = create_test_ollama_provider().await;
+    
+    // Mock model that doesn't support tools
+    let conversation = create_test_conversation();
+    let result = provider.send_message(conversation).await;
+    
+    assert!(result.is_ok());
+    // Verify request was sent without tools
+}
+
+#[tokio::test]
+async fn test_capability_check_failure_defaults_to_no_tools() {
+    // Test network failure during capability check
+    // Should not crash, should default to no tools
+}
 ```
 
 ### Acceptance Criteria
-- [ ] Models without tool support work for basic chat
+- [ ] Models without tool support work for basic chat (no HTTP 400 errors)
+- [ ] Models with tool support continue to work with tools unchanged
 - [ ] Clear logging when tools are disabled for a model
-- [ ] No HTTP 400 errors from Ollama server
-- [ ] Graceful degradation of functionality
+- [ ] Graceful degradation when capability check fails (network issues)
+- [ ] No breaking changes to existing tool-capable workflows
+- [ ] Reasonable performance (capability check doesn't slow down chat significantly)
 
-[To define - full implementation details]
+### Files to Modify
+- `crates/chat-cli/src/providers/ollama/mod.rs` - Main capability check logic
+- `crates/chat-cli/src/providers/ollama/client.rs` - Enhanced error handling (if needed)
+- Add comprehensive tests for capability detection scenarios
+
+### Success Criteria
+**Before Fix:**
+```
+!> hello!
+Amazon Q is having trouble responding right now:
+   0: Failed to send the request: Invalid configuration: Ollama server error 400: {"error":"registry.ollama.ai/library/deepseek-r1:8b does not support tools"}
+```
+
+**After Fix:**
+```
+!> hello!
+Hello! How can I help you today?
+```
+
+### Definition of Done
+- [ ] deepseek-r1:8b and other non-tool models work for basic chat
+- [ ] No HTTP 400 "does not support tools" errors
+- [ ] Tool-capable models (gpt-oss:120b) continue working with tools
+- [ ] Appropriate logging about tool availability
+- [ ] Comprehensive test coverage for edge cases
+- [ ] User can have normal conversations with any Ollama model
 
 ---
 
 ## Task 10: Enhanced Thinking Tool Capability Detection
 
-[To define]
+### Description
+Add support for the experimental thinking tool to Ollama providers, with proper capability detection and settings integration. The thinking tool allows models to reason through complex problems during response generation.
+
+### Current Problem
+- Thinking tool exists in core CLI but is NOT exposed to Ollama models
+- TODO comment in `get_ollama_tools()` method indicates this was planned
+- Models with "thinking" capability (like deepseek-r1:8b) can't use the thinking tool
+- No integration with `chat.enableThinking` setting for Ollama providers
+
+### Research Findings
+**Models WITH thinking capability:**
+- `deepseek-r1:8b` capabilities: `["completion", "thinking"]` ✅
+- `gpt-oss:20b` capabilities: `["completion", "tools", "thinking"]` ✅
+
+**Models WITHOUT thinking capability:**
+- `llama3.2` capabilities: `["completion", "tools"]` ❌ (no "thinking")
+
+**Existing Infrastructure:**
+- ✅ Thinking tool implementation in `crates/chat-cli/src/cli/chat/tools/thinking.rs`
+- ✅ Settings support via `chat.enableThinking` 
+- ✅ Capability detection via `supports_capability()` method
+- ✅ Tool parsing logic already handles "thinking" tool
+
+### Implementation Plan
+
+#### **Phase 1: Store Database in OllamaProvider**
+Add database access to the provider during construction:
+
+```rust
+// In providers/ollama/mod.rs - OUR CODE
+pub struct OllamaProvider {
+    client: OllamaClient,
+    base_url: String,
+    database: Database, // ← Add this field
+}
+
+impl OllamaProvider {
+    pub fn new(base_url: String, database: Database) -> Self {
+        let client = OllamaClient::new(base_url.clone());
+        Self { client, base_url, database } // ← Store database
+    }
+}
+```
+
+#### **Phase 2: Update ApiClient Constructor**
+Minimal change to pass database to provider:
+
+```rust
+// In api_client/mod.rs - MINIMAL UPSTREAM TOUCH
+ModelProvider::Ollama => {
+    let base_url = env.get("Q_CLI_MODEL_PROVIDER_BASE_URL")
+        .unwrap_or_else(|_| "http://localhost:11434".to_string());
+    Some(Box::new(OllamaProvider::new(base_url, database.clone())))
+    //                                           ^^^^^^^^^^^^^^^^ Add this
+},
+```
+
+#### **Phase 3: Add Thinking Tool with Capability Detection**
+Update `get_ollama_tools()` method to check both capability and settings:
+
+```rust
+// In providers/ollama/mod.rs - OUR CODE
+async fn get_ollama_tools(&self, model: &str) -> Result<Vec<OllamaTool>, ApiClientError> {
+    let mut tools = Vec::new();
+    
+    // ... existing tools ...
+    
+    // Add thinking tool if model supports it AND setting is enabled
+    if self.client.supports_capability(model, "thinking").await.unwrap_or(false) 
+       && self.database.settings.get_bool(Setting::EnabledThinking).unwrap_or(false) {
+        tools.push(OllamaTool {
+            tool_type: "function".to_string(),
+            function: OllamaFunction {
+                name: "thinking".to_string(),
+                description: "Allows the model to reason through complex problems during response generation".to_string(),
+                parameters: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "thought": {
+                            "type": "string",
+                            "description": "The thought content that the model wants to process"
+                        }
+                    },
+                    "required": ["thought"]
+                }),
+            },
+        });
+    }
+    
+    Ok(tools)
+}
+```
+
+### Testing Strategy
+
+#### **Manual Test Cases**
+```bash
+# Test 1: Enable thinking and use model with thinking capability
+q settings chat.enableThinking true
+Q_CLI_MODEL_PROVIDER=ollama q chat --model deepseek-r1:8b
+# Model should have access to thinking tool
+
+# Test 2: Disable thinking setting
+q settings chat.enableThinking false  
+Q_CLI_MODEL_PROVIDER=ollama q chat --model deepseek-r1:8b
+# Model should NOT have thinking tool
+
+# Test 3: Model without thinking capability
+q settings chat.enableThinking true
+Q_CLI_MODEL_PROVIDER=ollama q chat --model llama3.2
+# Model should NOT have thinking tool (no capability)
+
+# Test 4: Model with both tools and thinking
+Q_CLI_MODEL_PROVIDER=ollama q chat --model gpt-oss:20b  
+# Model should have both regular tools AND thinking tool
+```
+
+#### **Unit Tests**
+```rust
+#[tokio::test]
+async fn test_thinking_tool_capability_detection() {
+    // Test that thinking tool is included when:
+    // 1. Model supports "thinking" capability
+    // 2. Settings enable thinking
+    
+    // Test that thinking tool is excluded when:
+    // 1. Model doesn't support "thinking" capability
+    // 2. Settings disable thinking
+}
+```
+
+### Acceptance Criteria
+- [ ] Models with "thinking" capability get thinking tool when `chat.enableThinking` is true
+- [ ] Models without "thinking" capability never get thinking tool
+- [ ] Setting `chat.enableThinking false` disables thinking tool for all Ollama models
+- [ ] Existing tool functionality unchanged
+- [ ] Graceful error handling for capability check failures
+- [ ] Clear logging about thinking tool availability
+
+### Files to Modify
+- `crates/chat-cli/src/providers/ollama/mod.rs` - Add database field and thinking tool logic
+- `crates/chat-cli/src/api_client/mod.rs` - Pass database.clone() to OllamaProvider constructor (minimal change)
+- Add comprehensive tests for thinking tool integration
+
+### Success Criteria
+**Before Fix:**
+```
+# deepseek-r1:8b model can't use thinking tool
+# No thinking capability exposed to Ollama models
+```
+
+**After Fix:**
+```
+# deepseek-r1:8b can use thinking tool when enabled
+# Proper capability detection and settings integration
+# Models without thinking capability work normally
+```
+
+### Definition of Done
+- [ ] Thinking tool available to capable Ollama models when enabled
+- [ ] Proper integration with `chat.enableThinking` setting
+- [ ] Capability detection prevents thinking tool on unsupported models
+- [ ] All existing functionality preserved
+- [ ] Comprehensive test coverage
+- [ ] Clear user feedback about thinking tool availability
+
+## Task 12: Configurable Reasoning Effort for Thinking Models
+
+### Description
+Add user-configurable reasoning effort settings for thinking-capable Ollama models (like gpt-oss). This allows users to control the quality vs. speed trade-off when using thinking models.
+
+### Current Problem
+- Task 10 implements basic thinking tool with hardcoded "medium" reasoning effort
+- gpt-oss models support configurable reasoning effort ("low", "medium", "high") 
+- No user configuration available for reasoning effort levels
+- Users can't optimize for their specific use case (speed vs. quality)
+
+### Research Findings
+**Ollama API Support:**
+- `think` parameter accepts boolean or string ("high", "medium", "low")
+- Can be set via top-level `think` field or `options.reasoning`
+- OpenAI compatibility via `reasoning_effort` parameter
+
+**Current Q CLI:**
+- ✅ `chat.enableThinking` setting exists
+- ❌ No `chat.reasoningEffort` setting exists
+- Would require minimal upstream change to add new setting
+
+### Implementation Plan
+
+#### **Phase 1: Add Setting Support**
+Add new setting with minimal upstream touch:
+
+```rust
+// In settings.rs - MINIMAL UPSTREAM CHANGE
+pub enum Setting {
+    // ... existing settings
+    ChatReasoningEffort,  // ← Add this
+}
+
+impl AsRef<str> for Setting {
+    fn as_ref(&self) -> &'static str {
+        match self {
+            // ... existing mappings  
+            Self::ChatReasoningEffort => "chat.reasoningEffort", // ← Add this
+        }
+    }
+}
+```
+
+#### **Phase 2: Update Ollama Provider**
+Use setting in our provider:
+
+```rust
+// In providers/ollama/mod.rs - OUR CODE
+let reasoning_effort = self.database.settings
+    .get_string(Setting::ChatReasoningEffort)
+    .unwrap_or_else(|_| "medium".to_string());
+
+let request = OllamaChatRequest {
+    think: Some(reasoning_effort), // ← Use setting value
+    // ... rest of request
+};
+```
+
+#### **Phase 3: Add Validation**
+Ensure only valid values are accepted:
+
+```rust
+// Validation for "low", "medium", "high" values
+// Clear error messages for invalid values
+// Default to "medium" if unset
+```
+
+### Testing Strategy
+
+#### **Manual Test Cases**
+```bash
+# Test 1: Set high reasoning effort
+q settings chat.reasoningEffort high
+Q_CLI_MODEL_PROVIDER=ollama q chat --model gpt-oss:20b
+# Should use high reasoning effort (better quality, slower)
+
+# Test 2: Set low reasoning effort  
+q settings chat.reasoningEffort low
+Q_CLI_MODEL_PROVIDER=ollama q chat --model gpt-oss:20b
+# Should use low reasoning effort (faster, lower quality)
+
+# Test 3: Invalid value
+q settings chat.reasoningEffort invalid
+# Should show error: "Valid values: low, medium, high"
+
+# Test 4: Default behavior
+q settings chat.reasoningEffort --unset
+# Should default to "medium"
+```
+
+### Acceptance Criteria
+- [ ] New `chat.reasoningEffort` setting available via `q settings`
+- [ ] Valid values: "low", "medium", "high" 
+- [ ] Default value: "medium"
+- [ ] Invalid values show helpful error message with valid options
+- [ ] Setting applies to all thinking-capable Ollama models
+- [ ] Non-thinking models ignore the setting gracefully
+- [ ] Existing thinking tool functionality unchanged
+
+### Files to Modify
+- `crates/chat-cli/src/database/settings.rs` - Add new setting (minimal upstream touch)
+- `crates/chat-cli/src/providers/ollama/mod.rs` - Use setting in requests
+- Add validation and comprehensive tests
+
+### Success Criteria
+**Before Task 12:**
+```bash
+# Hardcoded "medium" reasoning effort
+# No user control over reasoning quality vs. speed
+```
+
+**After Task 12:**
+```bash
+q settings chat.reasoningEffort high  # Better quality, slower
+q settings chat.reasoningEffort low   # Faster responses, lower quality
+q settings chat.reasoningEffort medium # Balanced (default)
+```
+
+### Dependencies
+- **Requires**: Task 10 (basic thinking tool support) completed
+- **Research**: See `task12_research.md` for detailed technical analysis
+
+### Definition of Done
+- [ ] Users can configure reasoning effort via settings
+- [ ] Setting validation prevents invalid values
+- [ ] Default behavior is reasonable ("medium")
+- [ ] All existing functionality preserved
+- [ ] Comprehensive test coverage
+- [ ] Clear documentation of reasoning effort trade-offs
+
+---
+
+## Task 13: Accurate Context Window Reporting for Ollama Models
+
+### Description
+Fix context window reporting for Ollama models by dynamically querying the Ollama API for real model metadata instead of using hardcoded 200K defaults. This ensures `/usage` command shows accurate token limits and usage percentages.
+
+### Current Problem
+- gpt-oss models have 128K token context window but Q CLI reports 200K tokens
+- Usage percentage calculations are wrong (9.70% vs actual ~15.1%)
+- Users get misleading information about available context space
+- All Ollama models default to hardcoded 200K context window
+
+### Root Cause Analysis
+**Three sources of hardcoded 200K limits:**
+1. `default_context_window()` function returns 200K
+2. Ollama model creation hardcodes `context_window_tokens: 200_000` (line 186)
+3. `ModelInfo::from_id()` fallback uses 200K
+
+**AWS vs Ollama difference:**
+- AWS models query `model.token_limits().max_input_tokens()` for real limits
+- Ollama models use hardcoded 200K with no API querying
+
+### Implementation Plan
+
+#### **Phase 1: Add Dynamic Querying**
+Enhance `OllamaClient` to query model metadata:
+
+```rust
+impl OllamaClient {
+    pub async fn get_model_context_window(&self, model: &str) -> Result<Option<usize>, OllamaError> {
+        let model_info = self.get_model_info(model).await?;
+        
+        // Extract context window from model_info.model_info fields
+        // Try: "gpt-oss.context_length", "context_length", "max_position_embeddings", "n_ctx"
+        // Return actual context window size or None if not found
+    }
+}
+```
+
+#### **Phase 2: Update Model Creation**
+Replace hardcoded 200K in Ollama model creation (line 186):
+
+```rust
+// Instead of: context_window_tokens: 200_000
+let context_window_tokens = if let Some(provider) = os.client.ollama_client() {
+    provider.get_model_context_window(&name).await
+        .unwrap_or(None)
+        .unwrap_or(200_000) // Fallback if query fails
+} else {
+    200_000 // Fallback if no Ollama client
+};
+```
+
+#### **Phase 3: Add Caching & Error Handling**
+- Cache model metadata to avoid repeated API calls
+- Graceful error handling for network failures (fallback to 200K)
+- Retry logic for temporary failures
+
+### Testing Strategy
+
+#### **Manual Test Cases**
+```bash
+# Test 1: gpt-oss shows correct context window
+Q_CLI_MODEL_PROVIDER=ollama q chat --model gpt-oss:20b
+/usage
+# Should show "128k tokens" not "200k tokens"
+
+# Test 2: Usage percentage accuracy
+# With 19390 tokens used:
+# Before: 19390/200000 = 9.70%
+# After:  19390/128000 = 15.1%
+
+# Test 3: Network failure graceful fallback
+# Stop Ollama server, should fall back to 200K without crashing
+```
+
+### Acceptance Criteria
+- [ ] `/usage` shows correct context window for all Ollama models
+- [ ] Usage percentages calculated accurately based on real model limits
+- [ ] Dynamic querying via Ollama `/api/show` endpoint
+- [ ] Graceful fallback to 200K when query fails or model unknown
+- [ ] Caching to avoid repeated API calls
+- [ ] Works for gpt-oss (128K), llama3.2 (32K), and other models
+- [ ] No performance degradation or blocking behavior
+
+### Files to Modify
+- `crates/chat-cli/src/providers/ollama/client.rs` - Add context window querying
+- `crates/chat-cli/src/providers/ollama/types.rs` - Add model info response types
+- `crates/chat-cli/src/cli/chat/cli/model.rs` - Update Ollama model creation (line 186)
+- Add comprehensive tests for dynamic querying and fallbacks
+
+### Success Criteria
+**Before Fix:**
+```bash
+Current context window (19390 of 200k tokens used) 9.70%
+```
+
+**After Fix:**
+```bash
+Current context window (19390 of 128k tokens used) 15.1%
+```
+
+### Dependencies
+- **Requires**: Existing Ollama client and `/api/show` endpoint
+- **Research**: See `task13_research.md` for detailed technical analysis
+- **Enhances**: User understanding of actual context limits
+
+### Definition of Done
+- [ ] Dynamic querying of Ollama model metadata implemented
+- [ ] Context window reporting accurate for all supported models
+- [ ] Graceful error handling and fallbacks
+- [ ] Performance optimized with caching
+- [ ] Comprehensive test coverage
+- [ ] Clear logging for debugging context window detection
+
+---
 ## Task 11: MCP Tools Integration with Ollama
 
 ### Description
