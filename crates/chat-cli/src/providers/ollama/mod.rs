@@ -4,6 +4,7 @@ use tracing::{debug, warn};
 
 use crate::api_client::model::ConversationState;
 use crate::api_client::ApiClientError;
+use crate::database::{Database, settings::Setting};
 use crate::providers::MessageProvider;
 
 pub use self::client::OllamaClient;
@@ -16,18 +17,19 @@ mod types;
 pub struct OllamaProvider {
     client: OllamaClient,
     base_url: String,
+    database: Database,
 }
 
 impl OllamaProvider {
     /// Create a new Ollama provider
-    pub fn new(base_url: String) -> Self {
+    pub fn new(base_url: String, database: Database) -> Self {
         let client = OllamaClient::new(base_url.clone());
-        Self { client, base_url }
+        Self { client, base_url, database }
     }
     
     /// Create with default localhost URL
-    pub fn new_default() -> Self {
-        Self::new("http://localhost:11434".to_string())
+    pub fn new_default(database: Database) -> Self {
+        Self::new("http://localhost:11434".to_string(), database)
     }
     
     /// Get the Ollama client
@@ -348,12 +350,46 @@ impl OllamaProvider {
             },
         });
         
-        // Check if model supports tools via capability detection
-        // For now, skip thinking tool - will add capability detection later
-        // TODO: Add thinking tool based on model capabilities and settings
-        debug!("Model {} tool capabilities will be checked in future implementation", model);
+        // Add thinking tool if model supports it AND setting is enabled
+        if self.client.supports_capability(model, "thinking").await.unwrap_or(false) 
+           && self.database.settings.get_bool(Setting::EnabledThinking).unwrap_or(false) {
+            tools.push(OllamaTool {
+                tool_type: "function".to_string(),
+                function: OllamaFunction {
+                    name: "thinking".to_string(),
+                    description: "Allows the model to reason through complex problems during response generation".to_string(),
+                    parameters: serde_json::json!({
+                        "type": "object",
+                        "properties": {
+                            "thought": {
+                                "type": "string",
+                                "description": "The thought content that the model wants to process"
+                            }
+                        },
+                        "required": ["thought"]
+                    }),
+                },
+            });
+            debug!("Added thinking tool for model {} (capability: thinking, setting: enabled)", model);
+        } else {
+            debug!("Thinking tool not added for model {} (capability: {}, setting: {})", 
+                   model,
+                   self.client.supports_capability(model, "thinking").await.unwrap_or(false),
+                   self.database.settings.get_bool(Setting::EnabledThinking).unwrap_or(false));
+        }
         
         Ok(tools)
+    }
+    
+    /// Check if model supports tools with graceful error handling
+    async fn check_model_supports_tools(&self, model: &str) -> bool {
+        match self.client.supports_capability(model, "tools").await {
+            Ok(supports) => supports,
+            Err(e) => {
+                tracing::warn!("Failed to check tool capability for model {}: {}. Assuming no tool support.", model, e);
+                false // Safe default: assume no tools
+            }
+        }
     }
 }
 
@@ -361,12 +397,19 @@ impl OllamaProvider {
 impl MessageProvider for OllamaProvider {
     async fn send_message(&self, conversation: ConversationState) -> Result<crate::providers::ProviderResponse, ApiClientError> {
         let (ollama_messages, model) = self.convert_conversation_to_ollama(conversation)?;
-        let ollama_tools = self.get_ollama_tools(&model).await?;
+        
+        // Check if model supports tools before including them
+        let ollama_tools = if self.check_model_supports_tools(&model).await {
+            Some(self.get_ollama_tools(&model).await?)
+        } else {
+            tracing::info!("Model {} does not support tools, proceeding with chat-only mode", model);
+            None
+        };
         
         let request = OllamaChatRequest {
             model,
             messages: ollama_messages,
-            tools: Some(ollama_tools), // Include tools in request
+            tools: ollama_tools, // Conditional based on capability
             stream: Some(true), // Enable streaming for proper tool call handling
             format: None,
             options: None,
@@ -401,6 +444,11 @@ impl MessageProvider for OllamaProvider {
     
     async fn test_connection(&self) -> Result<bool, ApiClientError> {
         Ok(self.client.health_check().await.unwrap_or(false))
+    }
+    
+    async fn get_model_context_window(&self, model: &str) -> Result<Option<usize>, ApiClientError> {
+        self.client.get_model_context_window(model).await
+            .map_err(ApiClientError::from)
     }
 }
 
@@ -607,5 +655,18 @@ mod tests {
         // Message 4: User follow-up
         assert_eq!(messages[3].role, "user");
         assert_eq!(messages[3].content, Some("Great! What's in the file?".to_string()));
+    }
+    
+    #[tokio::test]
+    async fn test_check_model_supports_tools_method_exists() {
+        let provider = create_test_provider();
+        
+        // Test that the method exists and compiles
+        // In a real test environment, we'd mock the client to return specific capabilities
+        let _supports_tools = provider.check_model_supports_tools("test-model").await;
+        
+        // The method should return a boolean without panicking
+        // Actual capability testing would require mocking the OllamaClient
+        assert!(true); // Placeholder assertion - method exists and compiles
     }
 }

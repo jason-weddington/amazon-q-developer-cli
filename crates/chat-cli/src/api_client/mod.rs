@@ -145,7 +145,7 @@ impl ApiClient {
             ModelProvider::Ollama => {
                 let base_url = env.get("Q_CLI_MODEL_PROVIDER_BASE_URL")
                     .unwrap_or_else(|_| "http://localhost:11434".to_string());
-                Some(Box::new(crate::providers::OllamaProvider::new(base_url)) as Box<dyn crate::providers::MessageProvider>)
+                Some(Box::new(crate::providers::OllamaProvider::new(base_url, database.clone())) as Box<dyn crate::providers::MessageProvider>)
             },
             ModelProvider::Aws => None, // No external provider for AWS
             ModelProvider::OpenAi | ModelProvider::Anthropic => {
@@ -271,6 +271,14 @@ impl ApiClient {
     pub async fn list_external_models(&self) -> Result<Vec<String>, ApiClientError> {
         match &self.external_provider {
             Some(provider) => provider.list_models().await,
+            None => Err(ApiClientError::UnsupportedProvider("No external provider configured".to_string())),
+        }
+    }
+    
+    /// Get context window size for a model from external provider
+    pub async fn get_external_model_context_window(&self, model: &str) -> Result<Option<usize>, ApiClientError> {
+        match &self.external_provider {
+            Some(provider) => provider.get_model_context_window(model).await,
             None => Err(ApiClientError::UnsupportedProvider("No external provider configured".to_string())),
         }
     }
