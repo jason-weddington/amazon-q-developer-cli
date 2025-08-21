@@ -19,34 +19,6 @@ impl OllamaClient {
         }
     }
     
-    /// Send a chat request to Ollama (non-streaming)
-    pub async fn chat(&self, mut request: OllamaChatRequest) -> Result<OllamaChatResponse, OllamaError> {
-        // Ensure non-streaming for non-streaming requests
-        request.stream = Some(false);
-        
-        let url = format!("{}/api/chat", self.base_url);
-        
-        let response = self.client
-            .post(&url)
-            .json(&request)
-            .send()
-            .await
-            .map_err(OllamaError::HttpError)?;
-            
-        if !response.status().is_success() {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(OllamaError::ServerError { status, message });
-        }
-        
-        let chat_response: OllamaChatResponse = response
-            .json()
-            .await
-            .map_err(|e| OllamaError::InvalidResponse(e.to_string()))?;
-            
-        Ok(chat_response)
-    }
-    
     /// Send a streaming chat request to Ollama
     pub async fn chat_stream(&self, mut request: OllamaChatRequest) -> Result<OllamaStreamReceiver, OllamaError> {
         // Ensure streaming
@@ -205,23 +177,6 @@ impl OllamaClient {
     }
     
     /// Get model context window with fallback to default
-    pub async fn get_model_context_window_with_fallback(&self, model: &str) -> usize {
-        match self.get_model_context_window(model).await {
-            Ok(Some(size)) => {
-                tracing::debug!("Using context window {} for model {}", size, model);
-                size
-            },
-            Ok(None) => {
-                tracing::warn!("No context window info found for model {}, using default 200K", model);
-                200_000
-            },
-            Err(e) => {
-                tracing::warn!("Failed to query context window for model {}: {}, using default 200K", model, e);
-                200_000
-            }
-        }
-    }
-    
     /// Health check - verify Ollama server is accessible
     pub async fn health_check(&self) -> Result<bool, OllamaError> {
         let url = format!("{}/api/tags", self.base_url);
@@ -230,10 +185,5 @@ impl OllamaClient {
             Ok(response) => Ok(response.status().is_success()),
             Err(_) => Ok(false),
         }
-    }
-    
-    /// Get the base URL for this client
-    pub fn base_url(&self) -> &str {
-        &self.base_url
     }
 }

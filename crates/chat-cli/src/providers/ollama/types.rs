@@ -15,12 +15,6 @@ pub enum OllamaError {
     #[error("Ollama server error: {status} - {message}")]
     ServerError { status: u16, message: String },
     
-    #[error("Model not found: {model}")]
-    ModelNotFound { model: String },
-    
-    #[error("Connection failed to {url}")]
-    ConnectionFailed { url: String },
-    
     #[error("Invalid response format: {0}")]
     InvalidResponse(String),
 }
@@ -88,37 +82,13 @@ pub struct OllamaChatRequest {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct OllamaChatResponse {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub model: Option<String>, // Make optional to handle edge cases
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<String>, // Make optional to handle edge cases
     pub message: OllamaMessage,
     pub done: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub done_reason: Option<String>, // "stop", "length", etc.
-    
-    // Performance metrics (only in final response when done=true)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_duration: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub load_duration: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub prompt_eval_count: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub prompt_eval_duration: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub eval_count: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub eval_duration: Option<u64>,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct OllamaModel {
     pub name: String,
-    pub model: String,
-    pub modified_at: String,
-    pub size: u64,
-    pub digest: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -128,23 +98,8 @@ pub struct OllamaModelsResponse {
 
 #[derive(Deserialize, Debug)]
 pub struct OllamaModelInfo {
-    pub modelfile: String,
-    pub parameters: String,
-    pub template: String,
-    pub details: OllamaModelDetails,
     pub model_info: serde_json::Value,
     pub capabilities: Vec<String>, // ✨ Key field for capability detection
-    pub modified_at: String,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct OllamaModelDetails {
-    pub parent_model: String,
-    pub format: String,
-    pub family: String,
-    pub families: Vec<String>,
-    pub parameter_size: String,
-    pub quantization_level: String,
 }
 
 /// Streaming response receiver for Ollama
@@ -268,17 +223,7 @@ impl crate::providers::StreamReceiver for OllamaStreamReceiver {
         OllamaStreamReceiver::recv(self).await
     }
     
-    fn metadata(&self) -> crate::providers::ResponseMetadata {
-        crate::providers::ResponseMetadata::Ollama {
-            model: "unknown".to_string(), // TODO: Track actual model
-            total_duration: None,
-            eval_count: None,
-        }
-    }
-    
-    fn is_ended(&self) -> bool {
-        self.ended && self.pending_tool_events.is_empty()
-    }
+
 }
 
 // Convert plugin OllamaError directly to ApiClientError
@@ -291,12 +236,6 @@ impl From<OllamaError> for ApiClientError {
             },
             OllamaError::ServerError { status, message } => {
                 ApiClientError::InvalidConfiguration(format!("Ollama server error {}: {}", status, message))
-            },
-            OllamaError::ModelNotFound { model } => {
-                ApiClientError::InvalidConfiguration(format!("Ollama model not found: {}", model))
-            },
-            OllamaError::ConnectionFailed { url } => {
-                ApiClientError::InvalidConfiguration(format!("Ollama connection failed: {}", url))
             },
             OllamaError::InvalidResponse(msg) => {
                 ApiClientError::InvalidConfiguration(format!("Ollama invalid response: {}", msg))
