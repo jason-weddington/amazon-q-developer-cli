@@ -16,25 +16,14 @@ mod types;
 /// Ollama provider implementation
 pub struct OllamaProvider {
     client: OllamaClient,
-    base_url: String,
     database: Database,
 }
 
 impl OllamaProvider {
     /// Create a new Ollama provider
     pub fn new(base_url: String, database: Database) -> Self {
-        let client = OllamaClient::new(base_url.clone());
-        Self { client, base_url, database }
-    }
-    
-    /// Create with default localhost URL
-    pub fn new_default(database: Database) -> Self {
-        Self::new("http://localhost:11434".to_string(), database)
-    }
-    
-    /// Get the Ollama client
-    pub fn client(&self) -> &OllamaClient {
-        &self.client
+        let client = OllamaClient::new(base_url);
+        Self { client, database }
     }
     
     /// Convert AWS ConversationState to Ollama message format
@@ -429,21 +418,9 @@ impl MessageProvider for OllamaProvider {
         false // Ollama doesn't require authentication
     }
     
-    fn supports_streaming(&self) -> bool {
-        true
-    }
-    
-    fn supports_tools(&self) -> bool {
-        true // Most Ollama models support tools
-    }
-    
     async fn list_models(&self) -> Result<Vec<String>, ApiClientError> {
         let response = self.client.list_models().await?;
         Ok(response.models.into_iter().map(|m| m.name).collect())
-    }
-    
-    async fn test_connection(&self) -> Result<bool, ApiClientError> {
-        Ok(self.client.health_check().await.unwrap_or(false))
     }
     
     async fn get_model_context_window(&self, model: &str) -> Result<Option<usize>, ApiClientError> {
@@ -457,16 +434,18 @@ mod tests {
     use super::*;
     use crate::api_client::model::*;
 
-    fn create_test_provider() -> OllamaProvider {
+    async fn create_test_provider() -> OllamaProvider {
+        use crate::database::Database;
+        let database = Database::new().await.unwrap();
         OllamaProvider {
             client: OllamaClient::new("http://localhost:11434".to_string()),
-            base_url: "http://localhost:11434".to_string(),
+            database,
         }
     }
 
-    #[test]
-    fn test_convert_conversation_with_tool_uses() {
-        let provider = create_test_provider();
+    #[tokio::test]
+    async fn test_convert_conversation_with_tool_uses() {
+        let provider = create_test_provider().await;
         
         // Create conversation with assistant message containing tool uses
         let tool_use = ToolUse {
@@ -530,9 +509,9 @@ mod tests {
         assert_eq!(model, "gpt-oss:20b");
     }
 
-    #[test]
-    fn test_convert_conversation_with_tool_results() {
-        let provider = create_test_provider();
+    #[tokio::test]
+    async fn test_convert_conversation_with_tool_results() {
+        let provider = create_test_provider().await;
         
         // Create conversation with tool results in user message context
         let tool_result = ToolResult {
@@ -575,9 +554,9 @@ mod tests {
         assert_eq!(messages[1].content, Some("What did you create?".to_string()));
     }
 
-    #[test]
-    fn test_convert_conversation_full_tool_flow() {
-        let provider = create_test_provider();
+    #[tokio::test]
+    async fn test_convert_conversation_full_tool_flow() {
+        let provider = create_test_provider().await;
         
         // Create a complete tool flow: user → assistant with tool → tool result → user follow-up
         let tool_use = ToolUse {
@@ -659,7 +638,7 @@ mod tests {
     
     #[tokio::test]
     async fn test_check_model_supports_tools_method_exists() {
-        let provider = create_test_provider();
+        let provider = create_test_provider().await;
         
         // Test that the method exists and compiles
         // In a real test environment, we'd mock the client to return specific capabilities

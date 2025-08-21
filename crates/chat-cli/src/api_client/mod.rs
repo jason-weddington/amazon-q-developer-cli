@@ -263,10 +263,7 @@ impl ApiClient {
         })
     }
 
-    /// Get the current model provider
-    pub fn provider(&self) -> &ModelProvider {
-        &self.provider
-    }
+
 
     /// List models from external provider (e.g., Ollama)
     pub async fn list_external_models(&self) -> Result<Vec<String>, ApiClientError> {
