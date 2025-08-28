@@ -4,7 +4,7 @@
 
 **Primary Objective**: While implementing Ollama support for Amazon Q CLI, we are simultaneously researching how to systematize senior engineering management expertise into AI processes. Our hypothesis is that multi-agent systems can replicate the architectural review and systems thinking skills that typically require 25+ years of experience.
 
-**Real-World Problem**: In a 50-person engineering organization at Amazon, only 4-5 engineers are reaching the productivity levels achievable through effective AI collaboration. The gap between potential and actual AI-assisted productivity represents a massive organizational opportunity.
+**Real-World Problem**: In a 50-person engineering organization, only 4-5 engineers are reaching the productivity levels achievable through effective AI collaboration. The gap between potential and actual AI-assisted productivity represents a massive organizational opportunity.
 
 **Concrete Example**: This Ollama provider implementation - complete with plugin architecture, tool integration, capability detection, and comprehensive testing - was built in 5-6 hours of wall clock time by someone who didn't know Rust and didn't have Rust tooling when we started. The same work would typically take 2+ months working alone, even with strong CS fundamentals and decades of coding experience.
 
