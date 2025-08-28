@@ -102,9 +102,6 @@ pub enum ApiClientError {
     #[error("No default model found in the ListAvailableModels API response")]
     DefaultModelNotFound,
 
-    #[error(transparent)]
-    GetProfileError(#[from] SdkError<GetProfileError, HttpResponse>),
-
     // Provider configuration errors
     #[error("Invalid configuration: {0}")]
     InvalidConfiguration(String),
@@ -137,7 +134,6 @@ impl ApiClientError {
             Self::Credentials(_e) => None,
             Self::ListAvailableModelsError(e) => sdk_status_code(e),
             Self::DefaultModelNotFound => None,
-            Self::GetProfileError(e) => sdk_status_code(e),
             Self::InvalidConfiguration(_) => None,
             Self::UnsupportedProvider(_) => None,
         }
@@ -167,7 +163,6 @@ impl ReasonCode for ApiClientError {
             Self::Credentials(_) => "CredentialsError".to_string(),
             Self::ListAvailableModelsError(e) => sdk_error_code(e),
             Self::DefaultModelNotFound => "DefaultModelNotFound".to_string(),
-            Self::GetProfileError(e) => sdk_error_code(e),
             Self::InvalidConfiguration(_) => "InvalidConfiguration".to_string(),
             Self::UnsupportedProvider(_) => "UnsupportedProvider".to_string(),
         }
